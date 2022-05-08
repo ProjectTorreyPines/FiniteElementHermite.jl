@@ -2,21 +2,27 @@
 Define Hermite cubic finite elements
 ===============================================================#
 
-# For three points (x[1], y[1]), (x[2], y[2]), and (x[3], y[3]),
-#   fit a parabola and find derivative at x[2]
-function quad_deriv(x::Tuple{T,T,T}, y::Tuple{T,T,T}) where T <: Real
+"""
+    quad_deriv(x::Tuple{T,T,T}, y::Tuple{T,T,T}) where {T<:Real}
+
+Fit a parabola going through three points (x[1], y[1]), (x[2], y[2]), and (x[3], y[3]) and return derivative at x[2]
+"""
+function quad_deriv(x::Tuple{T,T,T}, y::Tuple{T,T,T}) where {T<:Real}
     hl = x[2] - x[1]
     hu = x[3] - x[2]
-    return ((y[3] - y[2])*hl^2 + (y[2] - y[1])*hu^2)/(hu*hl*(hu+hl))
+    return ((y[3] - y[2]) * hl^2 + (y[2] - y[1]) * hu^2) / (hu * hl * (hu + hl))
 end
 
-# Returns dy/dx at every point in x, based on local quadratic fit
-function fit_derivative(x::AbstractVector{T}, y::AbstractVector{T}) where T <: Real
-    N = length(x)
-    dy_dx = zeros(N)
+"""
+    fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}) 
+
+Returns dy/dx at every point in x, based on local quadratic fit
+"""
+function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
+    dy_dx = similar(x)
     dy_dx[1] = quad_deriv((x[3], x[1], x[2]), (y[3], y[1], y[2]))
     dy_dx[end] = quad_deriv((x[end-1], x[end], x[end-2]), (y[end-1], y[end], y[end-2]))
-    for k in 2:N-1
+    for k in 2:length(x)-1
         dy_dx[k] = quad_deriv(Tuple(x[k-1:k+1]), Tuple(y[k-1:k+1]))
     end
     return dy_dx
