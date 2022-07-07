@@ -8,6 +8,7 @@ BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 
 [compat]
+BandedMatrices = "0.17"
 julia = "1"
 
 [extras]
