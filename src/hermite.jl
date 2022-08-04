@@ -138,9 +138,12 @@ end
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
-    C = zeros(2 * length(x))
-    C[1:2:end] .= dy_dx
-    C[2:2:end] .= y
+    N = length(x)
+    C = Vector{typeof(y[1])}(undef, 2N)
+    for i in 1:N
+        C[2i-1] = dy_dx[i]
+        C[2i] = y[i]
+    end
     return C
 end
 
