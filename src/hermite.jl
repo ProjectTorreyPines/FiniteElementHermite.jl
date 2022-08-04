@@ -147,9 +147,9 @@ function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return C
 end
 
-struct FE_rep{T<:Real}
-    x::AbstractVector{T}
-    coeffs::AbstractVector{T}
+struct FE_rep{S <: AbstractVector{<:Real}}
+    x::S
+    coeffs::S
 end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
