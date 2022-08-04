@@ -194,21 +194,37 @@ function f_nu(x, f, nu, k, ρ)
     return f(x) * nu(x, k, ρ)
 end
 
-const gξ, gw = gauss(5, -1.0, 1.0)
-
-function integrate(f, lims, tol)
-    return quadgk(f, lims..., atol=tol, rtol=sqrt(tol))[1]
-    # Nint = length(lims) - 1
-    # I = 0.0
-    # for i in 1:Nint
-    #     #x, w = gauss(7, lims[i], lims[i+1])
-    #     dxdξ = 0.5*(lims[i+1] - lims[i])
-    #     I += sum(f.(dxdξ .* gξ .+ 0.5*(lims[i]+lims[i+1])) .* gw) .* dxdξ
-    # end
-    # return I
+function gl_preallocate(N_gl)
+    gξ = zeros(N_gl, N_gl)
+    gw = zeros(N_gl, N_gl)
+    for i in 1:N_gl
+        gξ[1:i, i], gw[1:i, i] = gausslegendre(i)
+    end
+    return gξ, gw
 end
 
-function inner_product(nu1, k1, nu2, k2, ρ)
+const N_gl = 50
+const gξ_pa, gw_pa = gl_preallocate(N_gl)
+
+function integrate(f, lims::Tuple; tol=eps(typeof(1.0)), order=nothing)
+    if order !== nothing
+        (order > 50) && throw(ValueError("order must be 50 or less"))
+        Nint = length(lims) - 1
+        I = 0.0
+        for i in 1:Nint
+            dxdξ = 0.5*(lims[i+1] - lims[i])
+            xavg = 0.5*(lims[i]+lims[i+1])
+            for k in 1:order
+                I += f(dxdξ * gξ_pa[k, order] + xavg) * gw_pa[k, order] * dxdξ
+            end
+        end
+        return I
+    elseif tol !== nothing
+        return quadgk(f, lims..., atol=tol, rtol=sqrt(tol), maxevals=100)[1]
+    end
+end
+
+function inner_product(nu1, k1, nu2, k2, ρ; order=nothing)
     if abs(k1 - k2) <= 1
         if k1 != k2
             lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
@@ -220,12 +236,13 @@ function inner_product(nu1, k1, nu2, k2, ρ)
             lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
         end
         tol = eps(typeof(ρ[1]))
-        return integrate(x -> nu_nu(x, nu1, k1, nu2, k2, ρ), lims, tol)
+        integrand(x) = nu_nu(x, nu1, k1, nu2, k2, ρ)
+        return integrate(integrand, lims; tol, order)
     end
     return 0.0
 end
 
-function inner_product(f, nu1, k1, nu2, k2, ρ)
+function inner_product(f, nu1, k1, nu2, k2, ρ; order=nothing)
     if abs(k1 - k2) <= 1
         if k1 != k2
             lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
@@ -237,12 +254,13 @@ function inner_product(f, nu1, k1, nu2, k2, ρ)
             lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
         end
         tol = eps(typeof(ρ[1]))
-        return integrate(x -> f_nu_nu(x, f, nu1, k1, nu2, k2, ρ), lims, tol)
+        integrand(x) = f_nu_nu(x, f, nu1, k1, nu2, k2, ρ)
+        return integrate(integrand, lims; tol, order)
     end
     return 0.0
 end
 
-function inner_product(nu1, k1, f, fnu2, g, gnu2, k2, ρ)
+function inner_product(nu1, k1, f, fnu2, g, gnu2, k2, ρ; order=nothing)
     if abs(k1 - k2) <= 1
         if k1 != k2
             lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
@@ -254,12 +272,13 @@ function inner_product(nu1, k1, f, fnu2, g, gnu2, k2, ρ)
             lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
         end
         tol = eps(typeof(ρ[1]))
-        return integrate(x -> nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ), lims, tol)
+        integrand(x) = nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ)
+        return integrate(integrand, lims; tol, order)
     end
     return 0.0
 end
 
-function inner_product(f, nu, k, ρ)
+function inner_product(f, nu, k, ρ; order=nothing)
     if k == 1
         lims = (ρ[1], ρ[2])
     elseif k == length(ρ)
@@ -268,5 +287,6 @@ function inner_product(f, nu, k, ρ)
         lims = (ρ[k-1], ρ[k], ρ[k+1])
     end
     tol = eps(typeof(ρ[1]))
-    return integrate(x -> f_nu(x, f, nu, k, ρ), lims, tol)
+    integrand(x) = f_nu(x, f, nu, k, ρ)
+    return integrate(integrand, lims; tol, order)
 end

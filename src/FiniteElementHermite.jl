@@ -2,7 +2,8 @@ __precompile__()
 
 module FiniteElementHermite
 
-using QuadGK
+import QuadGK: quadgk
+import FastGaussQuadrature: gausslegendre
 using BandedMatrices
 
 include("hermite.jl")
