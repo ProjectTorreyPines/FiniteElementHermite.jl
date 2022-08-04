@@ -1,7 +1,7 @@
 name = "FiniteElementHermite"
 uuid = "6ce10167-d368-4c0e-af34-9787cdd175e5"
 authors = ["Brendan C. Lyons <bclyons12@gmail.com> and contributors"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 BandedMatrices = "aae01518-5342-5314-be14-df237901396f"
