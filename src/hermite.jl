@@ -182,23 +182,7 @@ end
 Define inner products
 ===============================================================#
 
-function nu_nu(x, nu1, k1, nu2, k2, ρ)
-    return nu1(x, k1, ρ) * nu2(x, k2, ρ)
-end
-
-function f_nu_nu(x, f, nu1, k1, nu2, k2, ρ)
-    return f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
-end
-
-function nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ)
-    return nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
-end
-
-function f_nu(x, f, nu, k, ρ)
-    return f(x) * nu(x, k, ρ)
-end
-
-function gl_preallocate(N_gl)
+function gl_preallocate(N_gl::Integer)
     gξ = zeros(N_gl, N_gl)
     gw = zeros(N_gl, N_gl)
     for i in 1:N_gl
@@ -210,7 +194,7 @@ end
 const N_gl = 50
 const gξ_pa, gw_pa = gl_preallocate(N_gl)
 
-function integrate(f, lims::Tuple; tol=eps(typeof(1.0)), order=nothing)
+function integrate(f, lims::Tuple; tol::Union{Nothing,Real}=eps(typeof(1.0)), order::Union{Nothing,Integer}=nothing)
     if order !== nothing
         (order > 50) && throw(ValueError("order must be 50 or less"))
         Nint = length(lims) - 1
@@ -228,61 +212,20 @@ function integrate(f, lims::Tuple; tol=eps(typeof(1.0)), order=nothing)
     end
 end
 
-function inner_product(nu1, k1, nu2, k2, ρ; order=nothing)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        integrand(x) = nu_nu(x, nu1, k1, nu2, k2, ρ)
-        return integrate(integrand, lims; tol, order)
+function limits(k1::Integer, k2::Integer, ρ::AbstractVector{<:Real})
+    if k1 != k2
+        lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
+    elseif k1 == 1
+        lims = (ρ[1], ρ[2])
+    elseif k1 == length(ρ)
+        lims = (ρ[end-1], ρ[end])
+    else
+        lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
     end
-    return 0.0
+    return lims
 end
 
-function inner_product(f, nu1, k1, nu2, k2, ρ; order=nothing)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        integrand(x) = f_nu_nu(x, f, nu1, k1, nu2, k2, ρ)
-        return integrate(integrand, lims; tol, order)
-    end
-    return 0.0
-end
-
-function inner_product(nu1, k1, f, fnu2, g, gnu2, k2, ρ; order=nothing)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        integrand(x) = nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ)
-        return integrate(integrand, lims; tol, order)
-    end
-    return 0.0
-end
-
-function inner_product(f, nu, k, ρ; order=nothing)
+function limits(k::Integer, ρ::AbstractVector{<:Real})
     if k == 1
         lims = (ρ[1], ρ[2])
     elseif k == length(ρ)
@@ -290,7 +233,32 @@ function inner_product(f, nu, k, ρ; order=nothing)
     else
         lims = (ρ[k-1], ρ[k], ρ[k+1])
     end
+    return lims
+end
+
+function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
     tol = eps(typeof(ρ[1]))
-    integrand(x) = f_nu(x, f, nu, k, ρ)
-    return integrate(integrand, lims; tol, order)
+    integrand(x) = nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    return integrate(integrand, limit(k1, k2, ρ); tol, order)
+end
+
+function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
+    tol = eps(typeof(ρ[1]))
+    integrand(x) = f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    return integrate(integrand, limits(k1, k2, ρ); tol, order)
+end
+
+function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
+    tol = eps(typeof(ρ[1]))
+    integrand(x) = nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
+    return integrate(integrand, limits(k1, k2, ρ); tol, order)
+end
+
+function inner_product(f, nu, k::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+    tol = eps(typeof(ρ[1]))
+    integrand(x) = f(x) * nu(x, k, ρ)
+    return integrate(integrand, limits(k, ρ); tol, order)
 end
