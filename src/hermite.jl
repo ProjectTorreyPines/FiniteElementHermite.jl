@@ -3,14 +3,15 @@ Define Hermite cubic finite elements
 ===============================================================#
 
 """
-    quad_deriv(x::Tuple{T,T,T}, y::Tuple{T,T,T}) where {T<:Real}
+    quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 
-Fit a parabola going through three points (x[1], y[1]), (x[2], y[2]), and (x[3], y[3]) and return derivative at x[2]
+Fit a parabola going through three points (x1, y1), (x2, y2), and (x3, y3)
+  and return derivative at x2
 """
-function quad_deriv(x::Tuple{T,T,T}, y::Tuple{T,T,T}) where {T<:Real}
-    hl = x[2] - x[1]
-    hu = x[3] - x[2]
-    return ((y[3] - y[2]) * hl^2 + (y[2] - y[1]) * hu^2) / (hu * hl * (hu + hl))
+function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
+    hl = x2 - x1
+    hu = x3 - x2
+    return ((y3 - y2) * hl^2 + (y2 - y1) * hu^2) / (hu * hl * (hu + hl))
 end
 
 """
@@ -20,10 +21,10 @@ Returns dy/dx at every point in x, based on local quadratic fit
 """
 function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = similar(x)
-    dy_dx[1] = quad_deriv((x[3], x[1], x[2]), (y[3], y[1], y[2]))
-    dy_dx[end] = quad_deriv((x[end-1], x[end], x[end-2]), (y[end-1], y[end], y[end-2]))
+    dy_dx[1] = quad_deriv(x[3], x[1], x[2], y[3], y[1], y[2])
+    dy_dx[end] = quad_deriv(x[end-1], x[end], x[end-2], y[end-1], y[end], y[end-2])
     for k in 2:length(x)-1
-        dy_dx[k] = quad_deriv(Tuple(x[k-1:k+1]), Tuple(y[k-1:k+1]))
+        dy_dx[k] = quad_deriv(x[k-1], x[k], x[k+1], y[k-1], y[k], y[k+1])
     end
     return dy_dx
 end
@@ -137,15 +138,18 @@ end
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
-    C = zeros(2 * length(x))
-    C[1:2:end] .= dy_dx
-    C[2:2:end] .= y
+    N = length(x)
+    C = Vector{typeof(y[1])}(undef, 2N)
+    for i in 1:N
+        C[2i-1] = dy_dx[i]
+        C[2i] = y[i]
+    end
     return C
 end
 
-struct FE_rep{T<:Real}
-    x::AbstractVector{T}
-    coeffs::AbstractVector{T}
+struct FE_rep{S <: AbstractVector{<:Real}, T <: AbstractVector{<:Real}}
+    x::S
+    coeffs::T
 end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
@@ -178,95 +182,71 @@ end
 Define inner products
 ===============================================================#
 
-function nu_nu(x, nu1, k1, nu2, k2, ρ)
-    return nu1(x, k1, ρ) * nu2(x, k2, ρ)
-end
-
-function f_nu_nu(x, f, nu1, k1, nu2, k2, ρ)
-    return f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
-end
-
-function nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ)
-    return nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
-end
-
-function f_nu(x, f, nu, k, ρ)
-    return f(x) * nu(x, k, ρ)
-end
-
-const gξ, gw = gauss(5, -1.0, 1.0)
-
-function integrate(f, lims, tol)
-    return quadgk(f, lims..., atol=tol, rtol=sqrt(tol))[1]
-    # Nint = length(lims) - 1
-    # I = 0.0
-    # for i in 1:Nint
-    #     #x, w = gauss(7, lims[i], lims[i+1])
-    #     dxdξ = 0.5*(lims[i+1] - lims[i])
-    #     I += sum(f.(dxdξ .* gξ .+ 0.5*(lims[i]+lims[i+1])) .* gw) .* dxdξ
-    # end
-    # return I
-end
-
-function inner_product(nu1, k1, nu2, k2, ρ)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        return integrate(x -> nu_nu(x, nu1, k1, nu2, k2, ρ), lims, tol)
+function gl_preallocate(N_gl::Integer)
+    gξ = zeros(N_gl, N_gl)
+    gw = zeros(N_gl, N_gl)
+    for i in 1:N_gl
+        gξ[1:i, i], gw[1:i, i] = gausslegendre(i)
     end
-    return 0.0
+    return SMatrix{N_gl, N_gl}(gξ),  SMatrix{N_gl, N_gl}(gw)
 end
 
-function inner_product(f, nu1, k1, nu2, k2, ρ)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        return integrate(x -> f_nu_nu(x, f, nu1, k1, nu2, k2, ρ), lims, tol)
-    end
-    return 0.0
+const N_gl = 50
+const gξ_pa, gw_pa = gl_preallocate(N_gl)
+
+function integrate(f, lims::SVector; tol::Real=eps(typeof(1.0)))
+    return quadgk(f, lims..., atol=tol, rtol=sqrt(tol), maxevals=100)[1]
 end
 
-function inner_product(nu1, k1, f, fnu2, g, gnu2, k2, ρ)
-    if abs(k1 - k2) <= 1
-        if k1 != k2
-            lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-        elseif k1 == 1
-            lims = (ρ[1], ρ[2])
-        elseif k1 == length(ρ)
-            lims = (ρ[end-1], ρ[end])
-        else
-            lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-        end
-        tol = eps(typeof(ρ[1]))
-        return integrate(x -> nu_fnu_gnu(x, nu1, k1, f, fnu2, g, gnu2, k2, ρ), lims, tol)
+integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integrate(f, lims; tol)
+
+function integrate(f, lims::SVector{2,<:Real}, order::Integer)
+    @assert order <= 50
+    I = 0.0
+    dxdξ = 0.5*(lims[2] - lims[1])
+    xavg = 0.5*(lims[2] + lims[1])
+    for k in 1:order
+        I += f(dxdξ * gξ_pa[k, order] + xavg) * gw_pa[k, order] * dxdξ
     end
-    return 0.0
+    return I
 end
 
-function inner_product(f, nu, k, ρ)
-    if k == 1
-        lims = (ρ[1], ρ[2])
-    elseif k == length(ρ)
-        lims = (ρ[end-1], ρ[end])
-    else
-        lims = (ρ[k-1], ρ[k], ρ[k+1])
-    end
-    tol = eps(typeof(ρ[1]))
-    return integrate(x -> f_nu(x, f, nu, k, ρ), lims, tol)
+function integrate(f, lims::SVector{3,<:Real}, order::Integer)
+    return integrate(f, SVector(lims[1], lims[2]), order) + integrate(f, SVector(lims[2], lims[3]), order)
+end
+
+function limits(k1::Integer, k2::Integer, ρ::AbstractVector{<:Real})
+    k1 != k2        && return SVector(min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
+    k1 == 1         && return SVector(ρ[1], ρ[2])
+    k1 == length(ρ) && return SVector(ρ[end-1], ρ[end])
+    return SVector(ρ[k1-1], ρ[k1], ρ[k1+1])
+end
+
+function limits(k::Integer, ρ::AbstractVector{<:Real})
+    k == 1         && return SVector(ρ[1], ρ[2])
+    k == length(ρ) && return SVector(ρ[end-1], ρ[end])
+    return SVector(ρ[k-1], ρ[k], ρ[k+1])
+end
+
+function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
+    integrand(x) = nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    return integrate(integrand, limits(k1, k2, ρ), order)
+end
+
+function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
+    integrand(x) = f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    return integrate(integrand, limits(k1, k2, ρ), order)
+end
+
+function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    abs(k1 - k2) > 1 && return 0.0
+    integrand(x) = nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
+    return integrate(integrand, limits(k1, k2, ρ), order)
+end
+
+function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    integrand(x) = f(x) * nu(x, k, ρ)
+    return integrate(integrand, limits(k, ρ), order)
 end
