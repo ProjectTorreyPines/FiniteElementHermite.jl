@@ -201,7 +201,7 @@ end
 integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integrate(f, lims; tol)
 
 function integrate(f, lims::SVector{2,<:Real}, order::Integer)
-    (order > 50) && throw(ValueError("order must be 50 or less"))
+    @assert order <= 50
     I = 0.0
     dxdξ = 0.5*(lims[2] - lims[1])
     xavg = 0.5*(lims[2] + lims[1])
