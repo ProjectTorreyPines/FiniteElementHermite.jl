@@ -5,6 +5,7 @@ module FiniteElementHermite
 import QuadGK: quadgk
 import FastGaussQuadrature: gausslegendre
 using BandedMatrices
+using StaticArrays
 
 include("hermite.jl")
 export FE_rep, FE, D, I

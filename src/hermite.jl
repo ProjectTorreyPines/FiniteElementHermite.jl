@@ -147,9 +147,9 @@ function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return C
 end
 
-struct FE_rep{S <: AbstractVector{<:Real}}
+struct FE_rep{S <: AbstractVector{<:Real}, T <: AbstractVector{<:Real}}
     x::S
-    coeffs::S
+    coeffs::T
 end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
@@ -188,77 +188,65 @@ function gl_preallocate(N_gl::Integer)
     for i in 1:N_gl
         gξ[1:i, i], gw[1:i, i] = gausslegendre(i)
     end
-    return gξ, gw
+    return SMatrix{N_gl, N_gl}(gξ),  SMatrix{N_gl, N_gl}(gw)
 end
 
 const N_gl = 50
 const gξ_pa, gw_pa = gl_preallocate(N_gl)
 
-function integrate(f, lims::Tuple; tol::Union{Nothing,Real}=eps(typeof(1.0)), order::Union{Nothing,Integer}=nothing)
-    if order !== nothing
-        (order > 50) && throw(ValueError("order must be 50 or less"))
-        Nint = length(lims) - 1
-        I = 0.0
-        for i in 1:Nint
-            dxdξ = 0.5*(lims[i+1] - lims[i])
-            xavg = 0.5*(lims[i]+lims[i+1])
-            for k in 1:order
-                I += f(dxdξ * gξ_pa[k, order] + xavg) * gw_pa[k, order] * dxdξ
-            end
-        end
-        return I
-    elseif tol !== nothing
-        return quadgk(f, lims..., atol=tol, rtol=sqrt(tol), maxevals=100)[1]
+function integrate(f, lims::SVector; tol::Real=eps(typeof(1.0)))
+    return quadgk(f, lims..., atol=tol, rtol=sqrt(tol), maxevals=100)[1]
+end
+
+integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integrate(f, lims; tol)
+
+function integrate(f, lims::SVector{2,<:Real}, order::Integer)
+    (order > 50) && throw(ValueError("order must be 50 or less"))
+    I = 0.0
+    dxdξ = 0.5*(lims[2] - lims[1])
+    xavg = 0.5*(lims[2] + lims[1])
+    for k in 1:order
+        I += f(dxdξ * gξ_pa[k, order] + xavg) * gw_pa[k, order] * dxdξ
     end
+    return I
+end
+
+function integrate(f, lims::SVector{3,<:Real}, order::Integer)
+    return integrate(f, SVector(lims[1], lims[2]), order) + integrate(f, SVector(lims[2], lims[3]), order)
 end
 
 function limits(k1::Integer, k2::Integer, ρ::AbstractVector{<:Real})
-    if k1 != k2
-        lims = (min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-    elseif k1 == 1
-        lims = (ρ[1], ρ[2])
-    elseif k1 == length(ρ)
-        lims = (ρ[end-1], ρ[end])
-    else
-        lims = (ρ[k1-1], ρ[k1], ρ[k1+1])
-    end
-    return lims
+    k1 != k2        && return SVector(min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
+    k1 == 1         && return SVector(ρ[1], ρ[2])
+    k1 == length(ρ) && return SVector(ρ[end-1], ρ[end])
+    return SVector(ρ[k1-1], ρ[k1], ρ[k1+1])
 end
 
 function limits(k::Integer, ρ::AbstractVector{<:Real})
-    if k == 1
-        lims = (ρ[1], ρ[2])
-    elseif k == length(ρ)
-        lims = (ρ[end-1], ρ[end])
-    else
-        lims = (ρ[k-1], ρ[k], ρ[k+1])
-    end
-    return lims
+    k == 1         && return SVector(ρ[1], ρ[2])
+    k == length(ρ) && return SVector(ρ[end-1], ρ[end])
+    return SVector(ρ[k-1], ρ[k], ρ[k+1])
 end
 
-function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    tol = eps(typeof(ρ[1]))
     integrand(x) = nu1(x, k1, ρ) * nu2(x, k2, ρ)
-    return integrate(integrand, limit(k1, k2, ρ); tol, order)
+    return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
-function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    tol = eps(typeof(ρ[1]))
     integrand(x) = f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
-    return integrate(integrand, limits(k1, k2, ρ); tol, order)
+    return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
-function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
+function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    tol = eps(typeof(ρ[1]))
     integrand(x) = nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
-    return integrate(integrand, limits(k1, k2, ρ); tol, order)
+    return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
-function inner_product(f, nu, k::Integer, ρ::AbstractVector{<:Real}; order::Union{Nothing,Integer}=nothing)
-    tol = eps(typeof(ρ[1]))
+function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     integrand(x) = f(x) * nu(x, k, ρ)
-    return integrate(integrand, limits(k, ρ); tol, order)
+    return integrate(integrand, limits(k, ρ), order)
 end
