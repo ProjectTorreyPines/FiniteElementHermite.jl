@@ -132,7 +132,10 @@ end
     Df(x) = 12x^2 + 6*x + 2
 
     N = 100
-    ρ = (3.0 * range(0.0, 1.0, N).^ 2 .- 1.0)
+
+    grid(n) = (3.0 * range(0.0, 1.0, n).^ 2 .- 1.0)
+    
+    ρ = grid(N)
 
     Ifρ = If.(ρ)
     fρ  = f.(ρ)
@@ -143,12 +146,18 @@ end
     C[2:2:end] .= fρ
     F = FE_rep(ρ, C)
 
-    @test all(F.(ρ) .≈ fρ)
-    @test all(D.(Ref(F), ρ) .≈ Dfρ)
-    @test all(I.(Ref(F), ρ) .≈ Ifρ)
+    x = grid(3N)
+    Ifx = If.(x)
+    fx  = f.(x)
+    Dfx = Df.(x)
 
+    # These should be exact for a cubic
+    @test all(F.(x) .≈ fx)
+    @test all(D.(Ref(F), x) .≈ Dfx)
+    @test all(I.(Ref(F), x) .≈ Ifx)
+
+    # These are approximate 
     F = FE(ρ, fρ)
-
     @test all(F.(ρ) .≈ fρ)
     @test all(isapprox.(D.(Ref(F), ρ), Dfρ, rtol = 1.0/N))
     @test all(isapprox.(I.(Ref(F), ρ), Ifρ, rtol = 1.0/N))
