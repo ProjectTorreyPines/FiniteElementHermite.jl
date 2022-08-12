@@ -1,9 +1,11 @@
 using FiniteElementHermite
 using Test
 
-const ρ = [0.0, 0.33, 0.5, 1.0]
+
 
 @testset "even_elements" begin
+
+    ρ = [0.0, 0.33, 0.5, 1.0]
 
     # Test elements
     for k in eachindex(ρ)
@@ -64,6 +66,9 @@ const ρ = [0.0, 0.33, 0.5, 1.0]
 end
 
 @testset "odd_elements" begin
+
+    ρ = [0.0, 0.33, 0.5, 1.0]
+
     for k in eachindex(ρ)
         ρk = ρ[k]
         hl = 0.0
@@ -119,4 +124,33 @@ end
             @test I_νo(ρk + 0.1, k, ρ) ≈ Il
         end
     end
+end
+
+@testset "FE_representation" begin
+    If(x) = x^4 + x^3 + x^2 + x
+    f(x)  = 4x^3 + 3x^2 + 2x + 1
+    Df(x) = 12x^2 + 6*x + 2
+
+    N = 100
+    ρ = (3.0 * range(0.0, 1.0, N).^ 2 .- 1.0)
+
+    Ifρ = If.(ρ)
+    fρ  = f.(ρ)
+    Dfρ = Df.(ρ)
+
+    C = zeros(2N)
+    C[1:2:end] .= Dfρ
+    C[2:2:end] .= fρ
+    F = FE_rep(ρ, C)
+
+    @test all(F.(ρ) .≈ fρ)
+    @test all(D.(Ref(F), ρ) .≈ Dfρ)
+    @test all(I.(Ref(F), ρ) .≈ Ifρ)
+
+    F = FE(ρ, fρ)
+
+    @test all(F.(ρ) .≈ fρ)
+    @test all(isapprox.(D.(Ref(F), ρ), Dfρ, rtol = 1.0/N))
+    @test all(isapprox.(I.(Ref(F), ρ), Ifρ, rtol = 1.0/N))
+    
 end
