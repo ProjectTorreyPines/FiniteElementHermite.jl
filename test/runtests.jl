@@ -1,6 +1,122 @@
 using FiniteElementHermite
 using Test
 
-@testset "FiniteElementHermite.jl" begin
-    # Write your tests here.
+const ρ = [0.0, 0.33, 0.5, 1.0]
+
+@testset "even_elements" begin
+
+    # Test elements
+    for k in eachindex(ρ)
+        ρk = ρ[k]
+        hl = 0.0
+
+        if k > 1
+            ρkl = ρ[k-1]
+            hl = ρk - ρkl
+            
+            @test νe(ρkl - 0.1, k, ρ) == 0.0
+            @test D_νe(ρkl - 0.1, k, ρ) == 0.0
+            @test I_νe(ρkl - 0.1, k, ρ) == 0.0
+            
+            @test νe(ρkl, k, ρ) == 0.0
+            @test D_νe(ρkl, k, ρ) == 0.0
+            @test I_νe(ρkl, k, ρ) == 0.0
+            
+            @test νe(0.5*(ρkl + ρk), k, ρ) ≈ 0.5
+            @test D_νe(0.5*(ρkl + ρk), k, ρ) ≈ 1.5/hl
+            @test I_νe(0.5*(ρkl + ρk), k, ρ) ≈ hl * 3.0 / 32.0
+        else
+            @test νe(ρk - 0.1, k, ρ) == 0.0
+            @test D_νe(ρk - 0.1, k, ρ) == 0.0
+            @test I_νe(ρk - 0.1, k, ρ) == 0.0
+        end
+        
+        @test νe(ρk, k, ρ) == 1.0
+        @test D_νe(ρk, k, ρ) == 0.0
+        
+        Il = 0.5 * hl
+        
+        @test I_νe(ρk, k, ρ) == Il
+        
+        if k < length(ρ)
+            ρku = ρ[k+1]
+            hu = ρku - ρk
+            
+            @test νe(0.5*(ρk + ρku), k, ρ) ≈ 0.5
+            @test D_νe(0.5*(ρk + ρku), k, ρ) ≈ -1.5/hu
+            @test I_νe(0.5*(ρk + ρku), k, ρ) ≈ Il + hu * 13.0 / 32.0
+            
+            Iu = 0.5 * hu
+            
+            @test νe(ρku, k, ρ) == 0.0
+            @test D_νe(ρku, k, ρ) == 0.0
+            @test I_νe(ρku, k, ρ) ≈ Il + Iu
+            
+            @test νe(ρku + 0.1, k, ρ) == 0.0
+            @test D_νe(ρku + 0.1, k, ρ) == 0.0
+            @test I_νe(ρku + 0.1, k, ρ) ≈ Il + Iu
+        else
+            @test νe(ρk + 0.1, k, ρ) == 0.0
+            @test D_νe(ρk + 0.1, k, ρ) == 0.0
+            @test I_νe(ρk + 0.1, k, ρ) ≈ Il
+        end
+    end
+end
+
+@testset "odd_elements" begin
+    for k in eachindex(ρ)
+        ρk = ρ[k]
+        hl = 0.0
+
+        if k > 1
+            ρkl = ρ[k-1]
+            hl = ρk - ρkl
+            
+            @test νo(ρkl - 0.1, k, ρ) == 0.0
+            @test D_νo(ρkl - 0.1, k, ρ) == 0.0
+            @test I_νo(ρkl - 0.1, k, ρ) == 0.0
+            
+            @test νo(ρkl, k, ρ) == 0.0
+            @test D_νo(ρkl, k, ρ) == 0.0
+            @test I_νo(ρkl, k, ρ) == 0.0
+            
+            @test νo(0.5*(ρkl + ρk), k, ρ) ≈ -0.125 * hl
+            @test D_νo(0.5*(ρkl + ρk), k, ρ) ≈ -0.25
+            @test I_νo(0.5*(ρkl + ρk), k, ρ) ≈ -(5.0/192.0) * hl^2 
+        else
+            @test νo(ρk - 0.1, k, ρ) == 0.0
+            @test D_νo(ρk - 0.1, k, ρ) == 0.0
+            @test I_νo(ρk - 0.1, k, ρ) == 0.0
+        end
+        
+        @test νo(ρk, k, ρ) == 0.0
+        @test D_νo(ρk, k, ρ) == 1.0
+        
+        Il = -hl^2 / 12.0
+        
+        @test I_νo(ρk, k, ρ) ≈ Il
+        
+        if k < length(ρ)
+            ρku = ρ[k+1]
+            hu = ρku - ρk
+            
+            @test νo(0.5*(ρk + ρku), k, ρ) ≈ 0.125 * hu
+            @test D_νo(0.5*(ρk + ρku), k, ρ) ≈ -0.25
+            @test I_νo(0.5*(ρk + ρku), k, ρ) ≈ Il + (11.0 / 192.0) * hu^2
+            
+            Iu = hu^2 / 12.0
+            
+            @test νo(ρku, k, ρ) == 0.0
+            @test D_νo(ρku, k, ρ) == 0.0
+            @test I_νo(ρku, k, ρ) ≈ Il + Iu
+            
+            @test νo(ρku + 0.1, k, ρ) == 0.0
+            @test D_νo(ρku + 0.1, k, ρ) == 0.0
+            @test I_νo(ρku + 0.1, k, ρ) ≈ Il + Iu
+        else
+            @test νo(ρk + 0.1, k, ρ) == 0.0
+            @test D_νo(ρk + 0.1, k, ρ) == 0.0
+            @test I_νo(ρk + 0.1, k, ρ) ≈ Il
+        end
+    end
 end

@@ -15,7 +15,7 @@ function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 end
 
 """
-    fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}) 
+    fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
 
 Returns dy/dx at every point in x, based on local quadratic fit
 """
@@ -29,112 +29,162 @@ function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return dy_dx
 end
 
-function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        t = (x - ρ[k]) / (ρ[k] - ρ[k-1])
-        return -2.0 * t^3 - 3.0 * t^2 + 1.0
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        t = (x - ρ[k]) / (ρ[k+1] - ρ[k])
-        return 2.0 * t^3 - 3.0 * t^2 + 1.0
+function which_region(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+    ρk = ρ[k]
+    if x <= ρk
+        if k > 1
+            ρkl = ρ[k-1]
+            region = x > ρkl ? :in_low : :out_low
+            return region, ρkl, ρk
+        elseif x < ρk
+            return :out_low, -Inf, ρk
+        end
     end
+    if x >= ρk
+        if k < length(ρ)
+            ρku = ρ[k+1]
+            region = x < ρku ? :in_up : :out_up
+            return region, ρk, ρku
+        elseif x != ρk
+            return :out_up, ρk, Inf
+        end
+    end
+    return :error, -Inf, Inf
+end
+
+# Even element
+
+function νel(x::Real, ρkl::Real, ρk::Real)
+    t = (x - ρk) / (ρk - ρkl)
+    return -2.0 * t^3 - 3.0 * t^2 + 1.0
+end
+
+function νeu(x::Real, ρk::Real, ρku::Real)
+    t = (x - ρk) / (ρku - ρk)
+    return 2.0 * t^3 - 3.0 * t^2 + 1.0
+end
+
+function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return νel(x, ρ1, ρ2)
+    region === :in_up  && return νeu(x, ρ1, ρ2)
     return 0.0
+end
+
+function D_νel(x::Real, ρkl::Real, ρk::Real)
+    ihl = 1.0 / (ρk - ρkl)
+    t = (x - ρk) * ihl
+    return -6.0 * ihl * t * (t + 1.0)
+end
+
+function D_νeu(x::Real, ρk::Real, ρku::Real)
+    ihu = 1.0 / (ρku - ρk)
+    t = (x - ρk) * ihu
+    return 6.0 * ihu * t * (t - 1.0)
 end
 
 function D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        ihl = 1.0 / (ρ[k] - ρ[k-1])
-        t = (x - ρ[k]) * ihl
-        return -6.0 * ihl * t * (t + 1.0)
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        ihu = 1.0 / (ρ[k+1] - ρ[k])
-        t = (x - ρ[k]) * ihu
-        return 6.0 * ihu * t * (t - 1.0)
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return D_νel(x, ρ1, ρ2)
+    region === :in_up  && return D_νeu(x, ρ1, ρ2)
     return 0.0
+end
+
+function I_νel(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl * (-0.5 * t^4 - t^3 + t + 0.5)
+end
+
+function I_νeu(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return hu * t * (0.5 * t^3 - t^2 + 1.0)
 end
 
 function I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    k == 1 ? hl = 0.0 : hl = ρ[k] - ρ[k-1]
-    k == length(ρ) ? hu = 0.0 : hu = ρ[k+1] - ρ[k]
+    ρk = ρ[k]
 
-    if x <= ρ[k]
-        Iu = 0.0
-        if k > 1 && x >= ρ[k-1]
-            # we're in the lower half
-            t = (x - ρ[k]) / hl
-            Il = hl * (-0.5 * t^4 - t^3 + t + 0.5)
-        else
-            Il = 0.0
-        end
-    elseif x >= ρ[k]
-        Il = 0.5 * hl
-        if k < length(ρ) && x <= ρ[k+1]
-            # we're in the upper half
-            t = (x - ρ[k]) / hu
-            Iu = hu * t * (0.5 * t^3 - t^2 + 1.0)
-        else
-            Iu = 0.5 * hu
-        end
-    end
-    return Il + Iu
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :out_low && return 0.0
+    region === :in_low  && return I_νel(x, ρ1, ρ2)
+
+    Il = k > 1 ? 0.5 * (ρk - ρ[k-1]) : 0.0
+    region === :in_up  && return Il + I_νeu(x, ρ1, ρ2)
+    Iu = k < length(ρ) ? 0.5 * (ρ[k+1] - ρk) : 0.0
+    region === :out_up && return Il + Iu
+end
+
+# Odd element
+
+function νol(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl * t * (t + 1.0)^2
+end
+
+function νou(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return hu * t * (t - 1.0)^2
 end
 
 function νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        hl = ρ[k] - ρ[k-1]
-        t = (x - ρ[k]) / hl
-        return hl * t * (t + 1.0)^2
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        hu = ρ[k+1] - ρ[k]
-        t = (x - ρ[k]) / hu
-        return hu * t * (t - 1.0)^2
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return νol(x, ρ1, ρ2)
+    region === :in_up  && return νou(x, ρ1, ρ2)
     return 0.0
+end
+
+function D_νol(x::Real, ρkl::Real, ρk::Real)
+    t = (x - ρk) / (ρk - ρkl)
+    return 3.0 * t^2 + 4.0 * t + 1.0
+end
+
+function D_νou(x::Real, ρk::Real, ρku::Real)
+    t = (x - ρk) / (ρku - ρk)
+    return 3.0 * t^2 - 4.0 * t + 1.0
 end
 
 function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        t = (x - ρ[k]) / (ρ[k] - ρ[k-1])
-        return 3.0 * t^2 + 4.0 * t + 1.0
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        t = (x - ρ[k]) / (ρ[k+1] - ρ[k])
-        return 3.0 * t^2 - 4.0 * t + 1.0
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return D_νol(x, ρ1, ρ2)
+    region === :in_up  && return D_νou(x, ρ1, ρ2)
     return 0.0
 end
 
+const one_twelf  = 1.0 / 12.0
+const two_thirds = 2.0 / 3.0
+
+function I_νol(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl^2 * (0.25 * t^4 + two_thirds * t^3 + 0.5 * t^2 - one_twelf)
+end
+
+function I_νou(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return (hu * t)^2 * (0.25 * t^2 - two_thirds * t + 0.5)
+end
+
 function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    k == 1 ? hl = 0.0 : hl = ρ[k] - ρ[k-1]
-    if x <= ρ[k]
-        Iu = 0.0
-        if k > 1 && x >= ρ[k-1]
-            # we're in the lower half
-            t = (x - ρ[k]) / hl
-            Il = hl^2 * (0.25 * t^4 + (2.0 / 3.0) * t^3 + 0.5 * t^2 - 1.0 / 12.0)
-        else
-            Il = 0.0
-        end
-    elseif x >= ρ[k]
-        Il = -hl^2 / 12.0
-        k == length(ρ) ? hu = 0.0 : hu = ρ[k+1] - ρ[k]
-        if k < length(ρ) && x <= ρ[k+1]
-            # we're in the upper half
-            t = (x - ρ[k]) / hu
-            Iu = (hu * t)^2 * (0.25 * t^2 - (2.0 / 3.0) * t + 0.5)
-        else
-            Iu = hu^2 / 12.0
-        end
-    end
+    ρk = ρ[k]
+
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :out_low && return 0.0
+    region === :in_low  && return I_νol(x, ρ1, ρ2)
+
+    hl = k > 1 ? ρk - ρ[k-1] : 0.0
+    Il = -one_twelf * hl^2
+    region === :in_up  && return Il + I_νou(x, ρ1, ρ2)
+
+    hu = k < length(ρ) ? ρ[k+1] - ρk : 0.0
+    Iu = one_twelf * hu^2
     return Il + Iu
 end
+
+# FE Structure
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
