@@ -184,13 +184,14 @@ function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     return Il + Iu
 end
 
+
 # FE Structure
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
     N = length(x)
     C = Vector{typeof(y[1])}(undef, 2N)
-    for i in 1:N
+    @inbounds for i in 1:N
         C[2i-1] = dy_dx[i]
         C[2i] = y[i]
     end
@@ -200,28 +201,39 @@ end
 struct FE_rep{S <: AbstractVector{<:Real}, T <: AbstractVector{<:Real}}
     x::S
     coeffs::T
+    function FE_rep{S, T}(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:AbstractVector{<:Real}}
+        return length(coeffs) == 2length(x) ? new{S, T}(x, coeffs) : throw(DimensionMismatch)
+    end
+end
+function FE_rep(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:AbstractVector{<:Real}}
+    return FE_rep{S, T}(x, coeffs)
 end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
 function (Y::FE_rep)(x::Real)
-    y = 0.0
-    for k in 1:length(Y.x)
-        y += Y.coeffs[2k-1] * νo(x, k, Y.x)
-        y += Y.coeffs[2k] * νe(x, k, Y.x)
+    k = searchsortedlast(Y.x, x)
+    @inbounds y  = Y.coeffs[2k-1] * νo(x, k, Y.x)
+    @inbounds y += Y.coeffs[2k]   * νe(x, k, Y.x)
+    @inbounds if x != Y.x[k]
+        @inbounds y += Y.coeffs[2k+1] * νo(x, k+1, Y.x)
+        @inbounds y += Y.coeffs[2k+2] * νe(x, k+1, Y.x)
     end
     return y
 end
 function D(Y::FE_rep, x::Real)
-    dy_dx = 0.0
-    for k in 1:length(Y.x)
-        dy_dx += Y.coeffs[2k-1] * D_νo(x, k, Y.x)
-        dy_dx += Y.coeffs[2k] * D_νe(x, k, Y.x)
+    k = searchsortedlast(Y.x, x)
+    @inbounds dy_dx  =  Y.coeffs[2k-1] * D_νo(x, k, Y.x)
+    @inbounds dy_dx += Y.coeffs[2k]    * D_νe(x, k, Y.x)
+    @inbounds if x != Y.x[k]
+        @inbounds dy_dx += Y.coeffs[2k+1] * D_νo(x, k+1, Y.x)
+        @inbounds dy_dx += Y.coeffs[2k+2] * D_νe(x, k+1, Y.x)
     end
     return dy_dx
 end
 function I(Y::FE_rep, x::Real)
+    K = min(searchsortedfirst(Y.x, x), length(Y.x))
     yint = 0.0
-    for k in 1:length(Y.x)
+    @inbounds for k in 1:K
         yint += Y.coeffs[2k-1] * I_νo(x, k, Y.x)
         yint += Y.coeffs[2k] * I_νe(x, k, Y.x)
     end
