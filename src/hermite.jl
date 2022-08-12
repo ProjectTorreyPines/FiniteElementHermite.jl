@@ -212,24 +212,40 @@ FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
 function (Y::FE_rep)(x::Real)
     k = searchsortedlast(Y.x, x)
-    @inbounds y  = Y.coeffs[2k-1] * νo(x, k, Y.x)
-    @inbounds y += Y.coeffs[2k]   * νe(x, k, Y.x)
-    @inbounds if x != Y.x[k]
-        @inbounds y += Y.coeffs[2k+1] * νo(x, k+1, Y.x)
-        @inbounds y += Y.coeffs[2k+2] * νe(x, k+1, Y.x)
-    end
+    k == length(Y.x) && (k -= 1)
+
+    @inbounds ρk = Y.x[k]
+    x == ρk && return Y.coeffs[2k]
+
+    @inbounds ρku = Y.x[k+1]
+    x == ρku && return Y.coeffs[2k+2]
+
+    @inbounds y  = Y.coeffs[2k-1] * νou(x, ρk, ρku)
+    @inbounds y += Y.coeffs[2k  ] * νeu(x, ρk, ρku)
+    @inbounds y += Y.coeffs[2k+1] * νol(x, ρk, ρku)
+    @inbounds y += Y.coeffs[2k+2] * νel(x, ρk, ρku)
+
     return y
 end
+
 function D(Y::FE_rep, x::Real)
     k = searchsortedlast(Y.x, x)
-    @inbounds dy_dx  =  Y.coeffs[2k-1] * D_νo(x, k, Y.x)
-    @inbounds dy_dx += Y.coeffs[2k]    * D_νe(x, k, Y.x)
-    @inbounds if x != Y.x[k]
-        @inbounds dy_dx += Y.coeffs[2k+1] * D_νo(x, k+1, Y.x)
-        @inbounds dy_dx += Y.coeffs[2k+2] * D_νe(x, k+1, Y.x)
-    end
+    k == length(Y.x) && (k -= 1)
+
+    @inbounds ρk = Y.x[k]
+    x == ρk && return Y.coeffs[2k-1]
+
+    @inbounds ρku = Y.x[k+1]
+    x == ρku && return Y.coeffs[2k+1]
+
+    @inbounds dy_dx  = Y.coeffs[2k-1] * D_νou(x, ρk, ρku)
+    @inbounds dy_dx += Y.coeffs[2k  ] * D_νeu(x, ρk, ρku)
+    @inbounds dy_dx += Y.coeffs[2k+1] * D_νol(x, ρk, ρku)
+    @inbounds dy_dx += Y.coeffs[2k+2] * D_νel(x, ρk, ρku)
+
     return dy_dx
 end
+
 function I(Y::FE_rep, x::Real)
     K = min(searchsortedfirst(Y.x, x), length(Y.x))
     yint = 0.0
