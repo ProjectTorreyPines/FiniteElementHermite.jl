@@ -210,21 +210,40 @@ function FE_rep(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:Abstract
 end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
+
+@inline function compute_bases(Y::FE_rep, x::Real)
+    X = Y.x
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    nu_ou = νou(x, ρk, ρku)
+    nu_eu = νeu(x, ρk, ρku)
+    nu_ol = νol(x, ρk, ρku)
+    nu_el = νel(x, ρk, ρku)
+    return k, nu_ou, nu_eu, nu_ol, nu_el
+end
+
+@inline function evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
+    y  = Y.coeffs[2k-1] * nu_ou
+    y += Y.coeffs[2k  ] * nu_eu
+    y += Y.coeffs[2k+1] * nu_ol
+    y += Y.coeffs[2k+2] * nu_el
+    return y
+end
+
+@inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
+    @inbounds y  = Y.coeffs[2k-1] * nu_ou
+    @inbounds y += Y.coeffs[2k  ] * nu_eu
+    @inbounds y += Y.coeffs[2k+1] * nu_ol
+    @inbounds y += Y.coeffs[2k+2] * nu_el
+    return y
+end
+
 function (Y::FE_rep)(x::Real)
-    k = searchsortedlast(Y.x, x)
-    k == length(Y.x) && (k -= 1)
-
-    @inbounds ρk = Y.x[k]
-    #x == ρk && return Y.coeffs[2k]
-
-    @inbounds ρku = Y.x[k+1]
-    #x == ρku && return Y.coeffs[2k+2]
-
-    @inbounds y  = Y.coeffs[2k-1] * νou(x, ρk, ρku)
-    @inbounds y += Y.coeffs[2k  ] * νeu(x, ρk, ρku)
-    @inbounds y += Y.coeffs[2k+1] * νol(x, ρk, ρku)
-    @inbounds y += Y.coeffs[2k+2] * νel(x, ρk, ρku)
-
+    k, nu_ou, nu_eu, nu_ol, nu_el = compute_bases(Y, x)
+    y = evaluate_inbounds(Y, k, nu_ou, nu_eu, nu_ol, nu_el)
     return y
 end
 
