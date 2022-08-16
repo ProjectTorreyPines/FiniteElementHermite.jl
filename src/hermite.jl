@@ -215,10 +215,10 @@ function (Y::FE_rep)(x::Real)
     k == length(Y.x) && (k -= 1)
 
     @inbounds ρk = Y.x[k]
-    x == ρk && return Y.coeffs[2k]
+    #x == ρk && return Y.coeffs[2k]
 
     @inbounds ρku = Y.x[k+1]
-    x == ρku && return Y.coeffs[2k+2]
+    #x == ρku && return Y.coeffs[2k+2]
 
     @inbounds y  = Y.coeffs[2k-1] * νou(x, ρk, ρku)
     @inbounds y += Y.coeffs[2k  ] * νeu(x, ρk, ρku)
@@ -233,10 +233,10 @@ function D(Y::FE_rep, x::Real)
     k == length(Y.x) && (k -= 1)
 
     @inbounds ρk = Y.x[k]
-    x == ρk && return Y.coeffs[2k-1]
+    #x == ρk && return Y.coeffs[2k-1]
 
     @inbounds ρku = Y.x[k+1]
-    x == ρku && return Y.coeffs[2k+1]
+    #x == ρku && return Y.coeffs[2k+1]
 
     @inbounds dy_dx  = Y.coeffs[2k-1] * D_νou(x, ρk, ρku)
     @inbounds dy_dx += Y.coeffs[2k  ] * D_νeu(x, ρk, ρku)
