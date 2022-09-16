@@ -211,8 +211,7 @@ end
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
 
-@inline function compute_bases(Y::FE_rep, x::Real)
-    X = Y.x
+@inline function compute_bases(X::AbstractVector{<:Real}, x::Real)
     k = searchsortedlast(X, x)
     k == length(X) && (k -= 1)
 
@@ -242,26 +241,44 @@ end
 end
 
 function (Y::FE_rep)(x::Real)
-    k, nu_ou, nu_eu, nu_ol, nu_el = compute_bases(Y, x)
+    k, nu_ou, nu_eu, nu_ol, nu_el = compute_bases(Y.x, x)
     y = evaluate_inbounds(Y, k, nu_ou, nu_eu, nu_ol, nu_el)
     return y
 end
 
+@inline function compute_D_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    D_nu_ou = D_νou(x, ρk, ρku)
+    D_nu_eu = D_νeu(x, ρk, ρku)
+    D_nu_ol = D_νol(x, ρk, ρku)
+    D_nu_el = D_νel(x, ρk, ρku)
+    return k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el
+end
+
+@inline function compute_both_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    nu_ou = νou(x, ρk, ρku)
+    nu_eu = νeu(x, ρk, ρku)
+    nu_ol = νol(x, ρk, ρku)
+    nu_el = νel(x, ρk, ρku)
+    D_nu_ou = D_νou(x, ρk, ρku)
+    D_nu_eu = D_νeu(x, ρk, ρku)
+    D_nu_ol = D_νol(x, ρk, ρku)
+    D_nu_el = D_νel(x, ρk, ρku)
+    return k, nu_ou, nu_eu, nu_ol, nu_el, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el
+end
+
 function D(Y::FE_rep, x::Real)
-    k = searchsortedlast(Y.x, x)
-    k == length(Y.x) && (k -= 1)
-
-    @inbounds ρk = Y.x[k]
-    #x == ρk && return Y.coeffs[2k-1]
-
-    @inbounds ρku = Y.x[k+1]
-    #x == ρku && return Y.coeffs[2k+1]
-
-    @inbounds dy_dx  = Y.coeffs[2k-1] * D_νou(x, ρk, ρku)
-    @inbounds dy_dx += Y.coeffs[2k  ] * D_νeu(x, ρk, ρku)
-    @inbounds dy_dx += Y.coeffs[2k+1] * D_νol(x, ρk, ρku)
-    @inbounds dy_dx += Y.coeffs[2k+2] * D_νel(x, ρk, ρku)
-
+    k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el = compute_D_bases(Y.x, x)
+    dy_dx = evaluate_inbounds(Y, k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)
     return dy_dx
 end
 
@@ -312,6 +329,29 @@ function integrate(f, lims::SVector{3,<:Real}, order::Integer)
     return integrate(f, SVector(lims[1], lims[2]), order) + integrate(f, SVector(lims[2], lims[3]), order)
 end
 
+function dual_integrate(fs, lims::SVector{2,<:Real}, order::Integer)
+    @assert order <= 50
+    I1 = 0.0
+    I2 = 0.0
+    dxdξ = 0.5*(lims[2] - lims[1])
+    xavg = 0.5*(lims[2] + lims[1])
+    for k in 1:order
+        v1, v2 = fs(dxdξ * gξ_pa[k, order] + xavg)
+        w = gw_pa[k, order] * dxdξ
+        I1 += v1 * w
+        I2 += v2 * w
+    end
+    return I1, I2
+end
+
+function dual_integrate(fs, lims::SVector{3,<:Real}, order::Integer)
+    Il1, Il2 = dual_integrate(fs, SVector(lims[1], lims[2]), order)
+    Iu1, Iu2 = dual_integrate(fs, SVector(lims[2], lims[3]), order)
+    I1 = Il1 + Iu1
+    I2 = Il2 + Iu2
+    return I1, I2
+end
+
 function limits(k1::Integer, k2::Integer, ρ::AbstractVector{<:Real})
     k1 != k2        && return SVector(min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
     k1 == 1         && return SVector(ρ[1], ρ[2])
@@ -346,4 +386,12 @@ end
 function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     integrand(x) = f(x) * nu(x, k, ρ)
     return integrate(integrand, limits(k, ρ), order)
+end
+
+function inner_product(integrand::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    return integrate(integrand, limits(k1, k2, ρ), order)
+end
+
+function dual_inner_product(integrands::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
+    return dual_integrate(integrands, limits(k1, k2, ρ), order)
 end
