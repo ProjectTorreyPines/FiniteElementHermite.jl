@@ -56,12 +56,12 @@ end
 
 function νel(x::Real, ρkl::Real, ρk::Real)
     t = (x - ρk) / (ρk - ρkl)
-    return -2.0 * t^3 - 3.0 * t^2 + 1.0
+    return t^2 * (-2.0 * t - 3.0) + 1.0
 end
 
 function νeu(x::Real, ρk::Real, ρku::Real)
     t = (x - ρk) / (ρku - ρk)
-    return 2.0 * t^3 - 3.0 * t^2 + 1.0
+    return t^2 * (2.0 * t - 3.0) + 1.0
 end
 
 function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
@@ -99,7 +99,7 @@ end
 function I_νeu(x::Real, ρk::Real, ρku::Real)
     hu = ρku - ρk
     t = (x - ρk) / hu
-    return hu * t * (0.5 * t^3 - t^2 + 1.0)
+    return hu * t * (t^2 * (0.5 * t - 1.0) + 1.0)
 end
 
 function I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
@@ -138,12 +138,12 @@ end
 
 function D_νol(x::Real, ρkl::Real, ρk::Real)
     t = (x - ρk) / (ρk - ρkl)
-    return 3.0 * t^2 + 4.0 * t + 1.0
+    return t * (3.0 * t + 4.0) + 1.0
 end
 
 function D_νou(x::Real, ρk::Real, ρku::Real)
     t = (x - ρk) / (ρku - ρk)
-    return 3.0 * t^2 - 4.0 * t + 1.0
+    return t * (3.0 * t - 4.0) + 1.0
 end
 
 function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
@@ -165,7 +165,7 @@ end
 function I_νou(x::Real, ρk::Real, ρku::Real)
     hu = ρku - ρk
     t = (x - ρk) / hu
-    return (hu * t)^2 * (0.25 * t^2 - two_thirds * t + 0.5)
+    return (hu * t)^2 * (t * (0.25 * t - two_thirds) + 0.5)
 end
 
 function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
