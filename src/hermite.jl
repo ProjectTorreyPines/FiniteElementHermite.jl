@@ -315,7 +315,7 @@ end
 integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integrate(f, lims; tol)
 
 function integrate(f, lims::SVector{2,<:Real}, order::Integer)
-    @assert order <= 50
+    @assert order <= N_gl
     I = 0.0
     dxdξ = 0.5*(lims[2] - lims[1])
     xavg = 0.5*(lims[2] + lims[1])
@@ -330,7 +330,7 @@ function integrate(f, lims::SVector{3,<:Real}, order::Integer)
 end
 
 function dual_integrate(fs, lims::SVector{2,<:Real}, order::Integer)
-    @assert order <= 50
+    @assert order <= N_gl
     I1 = 0.0
     I2 = 0.0
     dxdξ = 0.5*(lims[2] - lims[1])
@@ -345,10 +345,34 @@ function dual_integrate(fs, lims::SVector{2,<:Real}, order::Integer)
 end
 
 function dual_integrate(fs, lims::SVector{3,<:Real}, order::Integer)
-    Il1, Il2 = dual_integrate(fs, SVector(lims[1], lims[2]), order)
-    Iu1, Iu2 = dual_integrate(fs, SVector(lims[2], lims[3]), order)
-    I1 = Il1 + Iu1
-    I2 = Il2 + Iu2
+    hl1 = 0.5 * lims[1]
+    hl2 = 0.5 * lims[2]
+    hl3 = 0.5 * lims[3]
+    dxdξl = hl2 - hl1
+    xavgl = hl2 + hl1
+    dxdξu = hl3 - hl2
+    xavgu = hl3 + hl2
+    return dual_integrate(fs, dxdξl, xavgl, dxdξu, xavgu, order)
+end
+
+function dual_integrate(fs, dxdξl::Real, xavgl::Real, dxdξu::Real, xavgu::Real, order::Integer)
+    @assert order <= N_gl
+    I1 = 0.0
+    I2 = 0.0
+    for k in 1:order
+        @inbounds gξ = gξ_pa[k, order]
+        @inbounds gw = gw_pa[k, order]
+
+        v1, v2 = fs(muladd(dxdξl, gξ, xavgl))
+        w = gw * dxdξl
+        I1 += v1 * w
+        I2 += v2 * w
+
+        v1, v2 = fs(muladd(dxdξu, gξ, xavgu))
+        w = gw * dxdξu
+        I1 += v1 * w
+        I2 += v2 * w
+    end
     return I1, I2
 end
 
