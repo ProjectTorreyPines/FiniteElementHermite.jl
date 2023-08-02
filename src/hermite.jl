@@ -390,24 +390,24 @@ end
 
 function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    integrand = x -> nu1(x, k1, ρ) * nu2(x, k2, ρ)
     return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
 function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
+    integrand = x -> f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
     return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
 function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
+    integrand = x -> nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
     return integrate(integrand, limits(k1, k2, ρ), order)
 end
 
 function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
-    integrand(x) = f(x) * nu(x, k, ρ)
+    integrand = x -> f(x) * nu(x, k, ρ)
     return integrate(integrand, limits(k, ρ), order)
 end
 
