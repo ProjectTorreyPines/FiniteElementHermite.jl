@@ -232,11 +232,10 @@ end
     return y
 end
 
-@inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
-    @inbounds y  = Y.coeffs[2k-1] * nu_ou
-    @inbounds y += Y.coeffs[2k  ] * nu_eu
-    @inbounds y += Y.coeffs[2k+1] * nu_ol
-    @inbounds y += Y.coeffs[2k+2] * nu_el
+@inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
+    tk = 2k
+    @inbounds y  = Y.coeffs[tk-1] * nu_ou + Y.coeffs[tk  ] * nu_eu
+    @inbounds y += Y.coeffs[tk+1] * nu_ol + Y.coeffs[tk+2] * nu_el
     return y
 end
 
