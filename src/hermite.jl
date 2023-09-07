@@ -189,11 +189,11 @@ end
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
-    N = length(x)
-    C = Vector{typeof(y[1])}(undef, 2N)
-    @inbounds for i in 1:N
-        C[2i-1] = dy_dx[i]
-        C[2i] = y[i]
+    C = Vector{eltype(y)}(undef, 2 * length(x))
+    @inbounds for i in eachindex(x)
+        ti = 2i
+        C[ti-1] = dy_dx[i]
+        C[ti] = y[i]
     end
     return C
 end
@@ -208,7 +208,20 @@ end
 function FE_rep(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:AbstractVector{<:Real}}
     return FE_rep{S, T}(x, coeffs)
 end
+
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
+
+# create FE_rep for data (x, y), but mapped to grid
+function FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real}, <:AbstractVector{<:Real}})
+    f = FE(xy...)
+    C = Vector{eltype(grid)}(undef, 2 * length(grid))
+    @inbounds for (i, g) in enumerate(grid)
+        ti = 2i
+        C[ti-1] = D(f, g)
+        C[ti] = f(g)
+    end
+    return FE_rep(grid, C)
+end
 
 
 @inline function compute_bases(X::AbstractVector{<:Real}, x::Real)
@@ -225,10 +238,11 @@ FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 end
 
 @inline function evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
-    y  = Y.coeffs[2k-1] * nu_ou
-    y += Y.coeffs[2k  ] * nu_eu
-    y += Y.coeffs[2k+1] * nu_ol
-    y += Y.coeffs[2k+2] * nu_el
+    tk = 2k
+    y  = Y.coeffs[tk-1] * nu_ou
+    y += Y.coeffs[tk  ] * nu_eu
+    y += Y.coeffs[tk+1] * nu_ol
+    y += Y.coeffs[tk+2] * nu_el
     return y
 end
 
@@ -285,8 +299,9 @@ function I(Y::FE_rep, x::Real)
     K = min(searchsortedfirst(Y.x, x), length(Y.x))
     yint = 0.0
     @inbounds for k in 1:K
-        yint += Y.coeffs[2k-1] * I_νo(x, k, Y.x)
-        yint += Y.coeffs[2k] * I_νe(x, k, Y.x)
+        tk = 2k
+        yint += Y.coeffs[tk-1] * I_νo(x, k, Y.x)
+        yint += Y.coeffs[tk] * I_νe(x, k, Y.x)
     end
     return yint
 end
