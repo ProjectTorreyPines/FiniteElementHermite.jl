@@ -1,5 +1,5 @@
 function mass_matrix(N, ρ)
-    Ms = zeros(2N,7)
+    Ms = zeros(eltype(ρ), 2N,7)
     for j in 1:N
         # First odd with all nearest neighbors
         Ms[2j-1, 1] = 0.0

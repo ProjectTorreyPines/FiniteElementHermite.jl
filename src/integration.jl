@@ -16,7 +16,7 @@ const gξ_pa, gw_pa = gl_preallocate(N_gl)
 
 function get_quadrature(x::AbstractVector, order::Integer)
     N = length(x)
-    xq = zeros(order * (N-1))
+    xq = zeros(eltype(x), order * (N-1))
     wq = similar(xq)
     for j in eachindex(x)
         j == N && break
