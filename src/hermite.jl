@@ -6,7 +6,7 @@ Define Hermite cubic finite elements
     quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 
 Fit a parabola going through three points (x1, y1), (x2, y2), and (x3, y3)
-  and return derivative at x2
+and return derivative at x2
 """
 function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
     hl = x2 - x1
@@ -67,7 +67,7 @@ end
 function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :in_low && return νel(x, ρ1, ρ2)
-    region === :in_up  && return νeu(x, ρ1, ρ2)
+    region === :in_up && return νeu(x, ρ1, ρ2)
     return 0.0
 end
 
@@ -86,7 +86,7 @@ end
 function D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :in_low && return D_νel(x, ρ1, ρ2)
-    region === :in_up  && return D_νeu(x, ρ1, ρ2)
+    region === :in_up && return D_νeu(x, ρ1, ρ2)
     return 0.0
 end
 
@@ -107,10 +107,10 @@ function I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :out_low && return 0.0
-    region === :in_low  && return I_νel(x, ρ1, ρ2)
+    region === :in_low && return I_νel(x, ρ1, ρ2)
 
     Il = k > 1 ? 0.5 * (ρk - ρ[k-1]) : 0.0
-    region === :in_up  && return Il + I_νeu(x, ρ1, ρ2)
+    region === :in_up && return Il + I_νeu(x, ρ1, ρ2)
     Iu = k < length(ρ) ? 0.5 * (ρ[k+1] - ρk) : 0.0
     region === :out_up && return Il + Iu
 end
@@ -132,7 +132,7 @@ end
 function νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :in_low && return νol(x, ρ1, ρ2)
-    region === :in_up  && return νou(x, ρ1, ρ2)
+    region === :in_up && return νou(x, ρ1, ρ2)
     return 0.0
 end
 
@@ -149,11 +149,11 @@ end
 function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :in_low && return D_νol(x, ρ1, ρ2)
-    region === :in_up  && return D_νou(x, ρ1, ρ2)
+    region === :in_up && return D_νou(x, ρ1, ρ2)
     return 0.0
 end
 
-const one_twelf  = 1.0 / 12.0
+const one_twelf = 1.0 / 12.0
 const two_thirds = 2.0 / 3.0
 
 function I_νol(x::Real, ρkl::Real, ρk::Real)
@@ -173,11 +173,11 @@ function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :out_low && return 0.0
-    region === :in_low  && return I_νol(x, ρ1, ρ2)
+    region === :in_low && return I_νol(x, ρ1, ρ2)
 
     hl = k > 1 ? ρk - ρ[k-1] : 0.0
     Il = -one_twelf * hl^2
-    region === :in_up  && return Il + I_νou(x, ρ1, ρ2)
+    region === :in_up && return Il + I_νou(x, ρ1, ρ2)
 
     hu = k < length(ρ) ? ρ[k+1] - ρk : 0.0
     Iu = one_twelf * hu^2
@@ -198,21 +198,21 @@ function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return C
 end
 
-struct FE_rep{S <: AbstractVector{<:Real}, T <: AbstractVector{<:Real}}
+struct FE_rep{S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
     x::S
     coeffs::T
-    function FE_rep{S, T}(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:AbstractVector{<:Real}}
-        return length(coeffs) == 2length(x) ? new{S, T}(x, coeffs) : throw(DimensionMismatch)
+    function FE_rep{S,T}(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
+        return length(coeffs) == 2length(x) ? new{S,T}(x, coeffs) : throw(DimensionMismatch)
     end
 end
-function FE_rep(x::S, coeffs::T) where {S <: AbstractVector{<:Real}, T<:AbstractVector{<:Real}}
-    return FE_rep{S, T}(x, coeffs)
+function FE_rep(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
+    return FE_rep{S,T}(x, coeffs)
 end
 
 FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
 
 # create FE_rep for data (x, y), but mapped to grid
-function FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real}, <:AbstractVector{<:Real}})
+function FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real},<:AbstractVector{<:Real}})
     f = FE(xy...)
     C = Vector{eltype(grid)}(undef, 2 * length(grid))
     @inbounds for (i, g) in enumerate(grid)
@@ -239,8 +239,8 @@ end
 
 @inline function evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
     tk = 2k
-    y  = Y.coeffs[tk-1] * nu_ou
-    y += Y.coeffs[tk  ] * nu_eu
+    y = Y.coeffs[tk-1] * nu_ou
+    y += Y.coeffs[tk] * nu_eu
     y += Y.coeffs[tk+1] * nu_ol
     y += Y.coeffs[tk+2] * nu_el
     return y
@@ -248,7 +248,7 @@ end
 
 @inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
     tk = 2k
-    @inbounds y  = Y.coeffs[tk-1] * nu_ou + Y.coeffs[tk  ] * nu_eu
+    @inbounds y = Y.coeffs[tk-1] * nu_ou + Y.coeffs[tk] * nu_eu
     @inbounds y += Y.coeffs[tk+1] * nu_ol + Y.coeffs[tk+2] * nu_el
     return y
 end
