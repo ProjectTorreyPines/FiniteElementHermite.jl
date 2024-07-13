@@ -18,4 +18,7 @@ export inner_product, dual_inner_product, get_quadrature
 include("matrices.jl")
 export mass_matrix
 
+const document = Dict()
+document[Symbol(@__MODULE__)] = [name for name in Base.names(@__MODULE__; all=false, imported=false) if name != Symbol(@__MODULE__)]
+
 end
