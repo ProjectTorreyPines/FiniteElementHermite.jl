@@ -1,9 +1,9 @@
 """
     mass_matrix(N::Integer, ρ::AbstractVector{<:Real})
 
-NxN matrix of inner products of all Hermite cubic finite elements on grid ρ
-Returns a BandedMatrix as only neighboring finite elements overlap
-N.B. - N should be determined from ρ and will be removed later
+NxN matrix of inner products of all Hermite cubic finite elements on grid `ρ`
+Returns a `BandedMatrix` as only neighboring finite elements overlap
+N.B. - `N` should be determined from `ρ` and will be removed later
 """
 function mass_matrix(N::Integer, ρ::AbstractVector{<:Real})
     Ms = zeros(eltype(ρ), 2N, 7)

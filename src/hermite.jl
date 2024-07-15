@@ -5,8 +5,8 @@ Define Hermite cubic finite elements
 """
     quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 
-Fit a parabola going through three points (x1, y1), (x2, y2), and (x3, y3)
-and return derivative at x2
+Fit a parabola going through three points `(x1, y1)`, `(x2, y2)`, and `(x3, y3)`
+and return derivative at `x2`
 """
 function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
     hl = x2 - x1
@@ -17,7 +17,7 @@ end
 """
     fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
 
-Returns dy/dx at every point in x, based on local quadratic fit
+Returns dy/dx at every point in `x`, based on local quadratic fit
 """
 function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = similar(x)
@@ -67,7 +67,7 @@ end
 """
     νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the value of the even basis element centered at ρ[k] at x
+Returns the value of the even basis element centered at `ρ[k]` at `x`
 """
 function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
@@ -91,7 +91,7 @@ end
 """
     D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the derivative of the even basis element centered at ρ[k] at x
+Returns the derivative of the even basis element centered at `ρ[k]` at `x`
 """
 function D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
@@ -115,7 +115,7 @@ end
 """
     I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the integral of the even basis element centered at ρ[k] from 0 to x
+Returns the integral of the even basis element centered at `ρ[k]` from 0 to `x`
 """
 function I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     ρk = ρ[k]
@@ -147,7 +147,7 @@ end
 """
     νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the value of the odd basis element centered at ρ[k] at x
+Returns the value of the odd basis element centered at `ρ[k]` at `x`
 """
 function νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
@@ -169,7 +169,7 @@ end
 """
     D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the derivative of the odd basis element centered at ρ[k] at x
+Returns the derivative of the odd basis element centered at `ρ[k]` at `x`
 """
 function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
@@ -196,7 +196,7 @@ end
 """
     I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
 
-Returns the integral of the odd basis element centered at ρ[k] from 0 to x
+Returns the integral of the odd basis element centered at `ρ[k]` from 0 to `x`
 """
 function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     ρk = ρ[k]
@@ -239,11 +239,11 @@ end
 """
     FE_rep(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
 
-Create Hermite-cubic finite-element representation on grid x with cofficients coeffs
-coeffs[2k] is the value of the function at x[k]
-coeffs[2k-1] is the derivative of the function at x[k]
+Create Hermite-cubic finite-element representation on grid `x` with cofficients `coeffs`
+`coeffs[2k]` is the value of the function at `x[k]`
+`coeffs[2k-1]` is the derivative of the function at `x[k]`
 
-An FE_rep is callable, giving the value of the finite-element representation, for example:
+An `FE_rep` is callable, giving the value of the finite-element representation, for example:
 ```
 Y = FE_rep(x, coeffs)
 Y(a) # gives value of the finite-element representation at x=a
@@ -256,7 +256,7 @@ end
 """
     FE(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
 
-Returns finite element representation of data (x, y), fitting local quadratics to determine derivative
+Returns finite element representation of data `(x, y)`, fitting local quadratics to determine derivative
 """
 function FE(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return FE_rep(x, hermite_coeffs(x, y))
@@ -265,7 +265,7 @@ end
 """
     FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real},<:AbstractVector{<:Real}})
 
-Returns finite element representation of data (x, y), mapped to grid
+Returns finite element representation of data `(x, y)`, mapped to `grid`
 """
 function FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real},<:AbstractVector{<:Real}})
     f = FE(xy...)
@@ -281,15 +281,15 @@ end
 """
     compute_bases(X::AbstractVector{<:Real}, x::Real)
 
-For grid X, find the value of the four basis functions at x
-This can be used with evaluate() or evaluate_inbounds() to compute the value of multiple
-  FE_rep efficiently if they share the same grid
+For grid `X`, find the value of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the value of multiple
+  `FE_rep`s efficiently if they share the same grid
 
-Returns (k, nu_ou, nu_eu, nu_ol, nu_el)
-where nu_ou is odd  basis element centered at X[k]
-      nu_eu is even basis element centered at X[k]
-      nu_ol is odd  basis element centered at X[k+1]
-      nu_el is even basis element centered at X[k+1]
+Returns `(k, nu_ou, nu_eu, nu_ol, nu_el)`
+where `nu_ou` is odd  basis element centered at `X[k]`
+      `nu_eu` is even basis element centered at `X[k]`
+      `nu_ol` is odd  basis element centered at `X[k+1]`
+      `nu_el` is even basis element centered at `X[k+1]`
 """
 @inline function compute_bases(X::AbstractVector{<:Real}, x::Real)
     k = searchsortedlast(X, x)
@@ -307,13 +307,13 @@ end
 """
     evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
 
-Evaluate FE_rep Y assuming basis function values/derivatives have been computed by
-    compute_bases, compute_D_bases, or compute_both_bases
+Evaluate `FE_rep` `Y` assuming basis function values/derivatives have been computed by
+    `compute_bases`, `compute_D_bases`, or `compute_both_bases`
 
-    nu_ou is value or derivative of odd  basis element centered at X[k]
-    nu_eu is value or derivative of even basis element centered at X[k]
-    nu_ol is value or derivative of odd  basis element centered at X[k+1]
-    nu_el is value or derivative of even basis element centered at X[k+1]
+    `nu_ou` is value or derivative of odd  basis element centered at `X[k]`
+    `nu_eu` is value or derivative of even basis element centered at `X[k]`
+    `nu_ol` is value or derivative of odd  basis element centered at `X[k+1]`
+    `nu_el` is value or derivative of even basis element centered at `X[k+1]`
 """
 @inline function evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
     tk = 2k
@@ -327,13 +327,13 @@ end
 """
     evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
 
-Evaluate FE_rep Y without bounds checking, assuming basis function values/derivatives
-     have been computed by compute_bases, compute_D_bases, or compute_both_bases
+Evaluate `FE_rep` `Y` without bounds checking, assuming basis function values/derivatives
+     have been computed by `compute_bases`, `compute_D_bases`, or `compute_both_bases`
 
-    nu_ou is value or derivative of odd  basis element centered at X[k]
-    nu_eu is value or derivative of even basis element centered at X[k]
-    nu_ol is value or derivative of odd  basis element centered at X[k+1]
-    nu_el is value or derivative of even basis element centered at X[k+1]
+    `nu_ou` is value or derivative of odd  basis element centered at `X[k]`
+    `nu_eu` is value or derivative of even basis element centered at `X[k]`
+    `nu_ol` is value or derivative of odd  basis element centered at `X[k+1]`
+    `nu_el` is value or derivative of even basis element centered at `X[k+1]`
 """
 @inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
     tk = 2k
@@ -345,7 +345,7 @@ end
 """
     (Y::FE_rep)(x::Real)
 
-Functor for FE_rep, giving the value of the finite-element representation at x
+Functor for `FE_rep`, giving the value of the finite-element representation at `x`
 """
 function (Y::FE_rep)(x::Real)
     k, nu_ou, nu_eu, nu_ol, nu_el = compute_bases(Y.x, x)
@@ -356,15 +356,15 @@ end
 """
     compute_D_bases(X::AbstractVector{<:Real}, x::Real)
 
-For grid X, find the derivative of the four basis functions at x
-This can be used with evaluate() or evaluate_inbounds() to compute the derivative of multiple
-  FE_rep efficiently if they share the same grid
+For grid `X`, find the derivative of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the derivative of multiple
+  `FE_rep`s efficiently if they share the same grid
 
-Returns (k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)
-where D_nu_ou is derivative of odd  basis element centered at X[k]
-      D_nu_eu is derivative of even basis element centered at X[k]
-      D_nu_ol is derivative of odd  basis element centered at X[k+1]
-      D_nu_el is derivative of even basis element centered at X[k+1]
+Returns `(k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)`
+where `D_nu_ou` is derivative of odd  basis element centered at `X[k]`
+      `D_nu_eu` is derivative of even basis element centered at `X[k]`
+      `D_nu_ol` is derivative of odd  basis element centered at `X[k+1]`
+      `D_nu_el` is derivative of even basis element centered at `X[k+1]`
 """
 @inline function compute_D_bases(X::AbstractVector{<:Real}, x::Real)
     k = searchsortedlast(X, x)
@@ -382,19 +382,19 @@ end
 """
     compute_both_bases(X::AbstractVector{<:Real}, x::Real)
 
-For grid X, find the value and derivative of the four basis functions at x
-This can be used with evaluate() or evaluate_inbounds() to compute the value and derivative of multiple
-  FE_rep efficiently if they share the same grid
+For grid `X`, find the value and derivative of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the value and derivative of multiple
+  `FE_rep` efficiently if they share the same grid
 
-Returns (k, nu_ou, nu_eu, nu_ol, nu_el, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)
-where nu_ou is odd  basis element centered at X[k]
-      nu_eu is even basis element centered at X[k]
-      nu_ol is odd  basis element centered at X[k+1]
-      nu_el is even basis element centered at X[k+1]
-      D_nu_ou is derivative of odd  basis element centered at X[k]
-      D_nu_eu is derivative of even basis element centered at X[k]
-      D_nu_ol is derivative of odd  basis element centered at X[k+1]
-      D_nu_el is derivative of even basis element centered at X[k+1]
+Returns `(k, nu_ou, nu_eu, nu_ol, nu_el, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)`
+where `nu_ou` is odd  basis element centered at `X[k]`
+      `nu_eu` is even basis element centered at `X[k]`
+      `nu_ol` is odd  basis element centered at `X[k+1]`
+      `nu_el` is even basis element centered at `X[k+1]`
+      `D_nu_ou` is derivative of odd  basis element centered at `X[k]`
+      `D_nu_eu` is derivative of even basis element centered at `X[k]`
+      `D_nu_ol` is derivative of odd  basis element centered at `X[k+1]`
+      `D_nu_el` is derivative of even basis element centered at `X[k+1]`
 """
 @inline function compute_both_bases(X::AbstractVector{<:Real}, x::Real)
     k = searchsortedlast(X, x)
@@ -416,7 +416,7 @@ end
 """
     D(Y::FE_rep, x::Real)
 
-Return derivative of FE_rep Y at location x
+Return derivative of FE_rep `Y` at location `x`
 """
 function D(Y::FE_rep, x::Real)
     k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el = compute_D_bases(Y.x, x)
@@ -427,7 +427,7 @@ end
 """
     I(Y::FE_rep, x::Real)
 
-Return integral of FE_rep Y from 0 to x
+Return integral of FE_rep `Y` from 0 to `x`
 """
 function I(Y::FE_rep, x::Real)
     K = min(searchsortedfirst(Y.x, x), length(Y.x))

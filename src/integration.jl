@@ -17,8 +17,8 @@ const gξ_pa, gw_pa = gl_preallocate(N_gl)
 """
     get_quadrature(x::AbstractVector, order::Integer)
 
-For finite-element grid x, give Gauss-Legendre quadrature integration of requested order
-Returns (xq, wq), quadrature points and quadrature weights
+For finite-element grid `x`, give Gauss-Legendre quadrature integration of requested `order`
+Returns `(xq, wq)`, quadrature points and quadrature weights
 """
 function get_quadrature(x::AbstractVector, order::Integer)
     N = length(x)
@@ -39,8 +39,8 @@ end
 """
     integrate(f, lims::SVector; tol::Real=eps(typeof(1.0)))
 
-Integrate function f between lims to absolute tolerance tol and relative tolerance sqrt(tol)
-Uses quadgk underneath
+Integrate function `f` between `lims` to absolute tolerance `tol` and relative tolerance `sqrt(tol)`
+Uses QuadGK underneath
 """
 function integrate(f, lims::SVector; tol::Real=eps(typeof(1.0)))
     return quadgk(f, lims...; atol=tol, rtol=sqrt(tol), maxevals=100)[1]
@@ -51,7 +51,7 @@ integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integr
 """
     integrate(f, lims::SVector{2,<:Real}, order::Integer)
 
-Integrate function f from lims[1] to lims[2] using Gauss-Legendre quadrature of requested order
+Integrate function `f` from `lims[1]` to `lims[2]` using Gauss-Legendre quadrature of requested `order`
 """
 function integrate(f, lims::SVector{2,<:Real}, order::Integer)
     @assert order <= N_gl
@@ -67,8 +67,8 @@ end
 """
     integrate(f, lims::SVector{3,<:Real}, order::Integer)
 
-Integrate function f from lims[1] to lims[2] and from lims[2] to lims[3],
-    using Gauss-Legendre quadrature of requested order
+Integrate function `f from `lims[1]` to `lims[2]` and from `lims[2]` to `lims[3]`,
+    using Gauss-Legendre quadrature of requested `order`
 """
 function integrate(f, lims::SVector{3,<:Real}, order::Integer)
     return integrate(f, SVector(lims[1], lims[2]), order) + integrate(f, SVector(lims[2], lims[3]), order)
@@ -77,8 +77,8 @@ end
 """
     dual_integrate(fs, lims::SVector{2,<:Real}, order::Integer)
 
-Simultaneously integrate two functions (fs returns two values) from lims[1] to lims[2],
-    using Gauss-Legendre quadrature of requested order
+Simultaneously integrate two functions (`fs` returns two values) from `lims[1]` to `lims[2]`,
+    using Gauss-Legendre quadrature of requested `order`
 """
 function dual_integrate(fs, lims::SVector{2,<:Real}, order::Integer)
     @assert order <= N_gl
@@ -98,8 +98,8 @@ end
 """
     dual_integrate(fs, lims::SVector{3,<:Real}, order::Integer)
 
-Simultaneously integrate two functions (fs returns two values) from lims[1] to lims[2] and lims[2] to lims[3],
-    using Gauss-Legendre quadrature of requested order
+Simultaneously integrate two functions (`fs` returns two values) from `lims[1]` to `lims[2]` and `lims[2]` to `lims[3]`,
+    using Gauss-Legendre quadrature of requested `order`
 """
 function dual_integrate(fs, lims::SVector{3,<:Real}, order::Integer)
     hl1 = 0.5 * lims[1]
@@ -149,9 +149,9 @@ end
 """
     inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner producut ∫dx nu1(x, k1, ρ) * nu2(x, k2, ρ)
-   where nu1 and nu2 are basis functions
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product ∫dx `nu1(x, k1, ρ)` * `nu2(x, k2, ρ)`
+   where `nu1` and `nu2` are basis functions
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
@@ -162,9 +162,9 @@ end
 """
     inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner product ∫dx f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
-   where nu1 and nu2 are basis functions
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product ∫dx f(x) * `nu1(x, k1, ρ)` * `nu2(x, k2, ρ)`
+   where `nu1` and `nu2` are basis functions
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
@@ -175,9 +175,9 @@ end
 """
     inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner product ∫dx nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
-   where nu1, fnu2, and gnu2 are basis functions
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product ∫dx `nu1(x, k1, ρ)` * (`f(x)` * `fnu2(x, k2, ρ)` + `g(x)` * `gnu2(x, k2, ρ)`)
+   where `nu1`, `fnu2`, and `gnu2` are basis functions
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     abs(k1 - k2) > 1 && return 0.0
@@ -188,8 +188,8 @@ end
 """
     inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner product ∫dx f(x) * nu(x, k, ρ) where nu is a basis function
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product ∫dx `f(x)` * `nu(x, k, ρ)` where `nu` is a basis function
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     integrand = x -> f(x) * nu(x, k, ρ)
@@ -199,9 +199,9 @@ end
 """
     inner_product(integrand::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner product for generic integrand for in region where the k1-th and k2-th finite elements
-    of grid ρ overlap
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product for generic `integrand` for in region where the `k1`-th and `k2`-th finite elements
+    of grid `ρ` overlap
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function inner_product(integrand::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     return integrate(integrand, limits(k1, k2, ρ), order)
@@ -210,9 +210,9 @@ end
 """
     dual_inner_product(integrands::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
 
-Compute inner product for two functions simultaneously (integrands returns two values) in region where the k1-th and k2-th
-    finite elements of grid ρ overlap
-Uses Gauss-Legendre quadature of requested order if given
+Compute inner product for two functions simultaneously (`integrands` returns two values) in region where the `k1`-th and `k2`-th
+    finite elements of grid `ρ` overlap
+Uses Gauss-Legendre quadature of requested `order` if given
 """
 function dual_inner_product(integrands::Function, k1, k2, ρ::AbstractVector{<:Real}, order::Union{Nothing,Integer}=nothing)
     return dual_integrate(integrands, limits(k1, k2, ρ), order)
