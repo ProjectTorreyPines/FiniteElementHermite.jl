@@ -5,8 +5,8 @@ Define Hermite cubic finite elements
 """
     quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 
-Fit a parabola going through three points (x1, y1), (x2, y2), and (x3, y3)
-  and return derivative at x2
+Fit a parabola going through three points `(x1, y1)`, `(x2, y2)`, and `(x3, y3)`
+and return derivative at `x2`
 """
 function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
     hl = x2 - x1
@@ -15,9 +15,9 @@ function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
 end
 
 """
-    fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}) 
+    fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
 
-Returns dy/dx at every point in x, based on local quadratic fit
+Returns dy/dx at every point in `x`, based on local quadratic fit
 """
 function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = similar(x)
@@ -29,224 +29,413 @@ function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     return dy_dx
 end
 
+function which_region(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+    ρk = ρ[k]
+    if x <= ρk
+        if k > 1
+            ρkl = ρ[k-1]
+            region = x > ρkl ? :in_low : :out_low
+            return region, ρkl, ρk
+        elseif x < ρk
+            return :out_low, -Inf, ρk
+        end
+    end
+    if x >= ρk
+        if k < length(ρ)
+            ρku = ρ[k+1]
+            region = x < ρku ? :in_up : :out_up
+            return region, ρk, ρku
+        elseif x != ρk
+            return :out_up, ρk, Inf
+        end
+    end
+    return :error, -Inf, Inf
+end
+
+# Even element
+
+function νel(x::Real, ρkl::Real, ρk::Real)
+    t = (x - ρk) / (ρk - ρkl)
+    return t^2 * (-2.0 * t - 3.0) + 1.0
+end
+
+function νeu(x::Real, ρk::Real, ρku::Real)
+    t = (x - ρk) / (ρku - ρk)
+    return t^2 * (2.0 * t - 3.0) + 1.0
+end
+
+"""
+    νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the value of the even basis element centered at `ρ[k]` at `x`
+"""
 function νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        t = (x - ρ[k]) / (ρ[k] - ρ[k-1])
-        return -2.0 * t^3 - 3.0 * t^2 + 1.0
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        t = (x - ρ[k]) / (ρ[k+1] - ρ[k])
-        return 2.0 * t^3 - 3.0 * t^2 + 1.0
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return νel(x, ρ1, ρ2)
+    region === :in_up && return νeu(x, ρ1, ρ2)
     return 0.0
 end
 
+function D_νel(x::Real, ρkl::Real, ρk::Real)
+    ihl = 1.0 / (ρk - ρkl)
+    t = (x - ρk) * ihl
+    return -6.0 * ihl * t * (t + 1.0)
+end
+
+function D_νeu(x::Real, ρk::Real, ρku::Real)
+    ihu = 1.0 / (ρku - ρk)
+    t = (x - ρk) * ihu
+    return 6.0 * ihu * t * (t - 1.0)
+end
+
+"""
+    D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the derivative of the even basis element centered at `ρ[k]` at `x`
+"""
 function D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        ihl = 1.0 / (ρ[k] - ρ[k-1])
-        t = (x - ρ[k]) * ihl
-        return -6.0 * ihl * t * (t + 1.0)
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        ihu = 1.0 / (ρ[k+1] - ρ[k])
-        t = (x - ρ[k]) * ihu
-        return 6.0 * ihu * t * (t - 1.0)
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return D_νel(x, ρ1, ρ2)
+    region === :in_up && return D_νeu(x, ρ1, ρ2)
     return 0.0
 end
 
+function I_νel(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl * (-0.5 * t^4 - t^3 + t + 0.5)
+end
+
+function I_νeu(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return hu * t * (t^2 * (0.5 * t - 1.0) + 1.0)
+end
+
+"""
+    I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the integral of the even basis element centered at `ρ[k]` from 0 to `x`
+"""
 function I_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    k == 1 ? hl = 0.0 : hl = ρ[k] - ρ[k-1]
-    k == length(ρ) ? hu = 0.0 : hu = ρ[k+1] - ρ[k]
+    ρk = ρ[k]
 
-    if x <= ρ[k]
-        Iu = 0.0
-        if k > 1 && x >= ρ[k-1]
-            # we're in the lower half
-            t = (x - ρ[k]) / hl
-            Il = hl * (-0.5 * t^4 - t^3 + t + 0.5)
-        else
-            Il = 0.0
-        end
-    elseif x >= ρ[k]
-        Il = 0.5 * hl
-        if k < length(ρ) && x <= ρ[k+1]
-            # we're in the upper half
-            t = (x - ρ[k]) / hu
-            Iu = hu * t * (0.5 * t^3 - t^2 + 1.0)
-        else
-            Iu = 0.5 * hu
-        end
-    end
-    return Il + Iu
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :out_low && return 0.0
+    region === :in_low && return I_νel(x, ρ1, ρ2)
+
+    Il = k > 1 ? 0.5 * (ρk - ρ[k-1]) : 0.0
+    region === :in_up && return Il + I_νeu(x, ρ1, ρ2)
+    Iu = k < length(ρ) ? 0.5 * (ρ[k+1] - ρk) : 0.0
+    region === :out_up && return Il + Iu
 end
 
+# Odd element
+
+function νol(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl * t * (t + 1.0)^2
+end
+
+function νou(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return hu * t * (t - 1.0)^2
+end
+
+"""
+    νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the value of the odd basis element centered at `ρ[k]` at `x`
+"""
 function νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        hl = ρ[k] - ρ[k-1]
-        t = (x - ρ[k]) / hl
-        return hl * t * (t + 1.0)^2
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        hu = ρ[k+1] - ρ[k]
-        t = (x - ρ[k]) / hu
-        return hu * t * (t - 1.0)^2
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return νol(x, ρ1, ρ2)
+    region === :in_up && return νou(x, ρ1, ρ2)
     return 0.0
 end
 
+function D_νol(x::Real, ρkl::Real, ρk::Real)
+    t = (x - ρk) / (ρk - ρkl)
+    return t * (3.0 * t + 4.0) + 1.0
+end
+
+function D_νou(x::Real, ρk::Real, ρku::Real)
+    t = (x - ρk) / (ρku - ρk)
+    return t * (3.0 * t - 4.0) + 1.0
+end
+
+"""
+    D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the derivative of the odd basis element centered at `ρ[k]` at `x`
+"""
 function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    if k > 1 && x >= ρ[k-1] && x <= ρ[k]
-        # we're in the lower half
-        t = (x - ρ[k]) / (ρ[k] - ρ[k-1])
-        return 3.0 * t^2 + 4.0 * t + 1.0
-    elseif k < length(ρ) && x >= ρ[k] && x <= ρ[k+1]
-        # we're in the upper half
-        t = (x - ρ[k]) / (ρ[k+1] - ρ[k])
-        return 3.0 * t^2 - 4.0 * t + 1.0
-    end
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :in_low && return D_νol(x, ρ1, ρ2)
+    region === :in_up && return D_νou(x, ρ1, ρ2)
     return 0.0
 end
 
+const one_twelf = 1.0 / 12.0
+const two_thirds = 2.0 / 3.0
+
+function I_νol(x::Real, ρkl::Real, ρk::Real)
+    hl = ρk - ρkl
+    t = (x - ρk) / hl
+    return hl^2 * (0.25 * t^4 + two_thirds * t^3 + 0.5 * t^2 - one_twelf)
+end
+
+function I_νou(x::Real, ρk::Real, ρku::Real)
+    hu = ρku - ρk
+    t = (x - ρk) / hu
+    return (hu * t)^2 * (t * (0.25 * t - two_thirds) + 0.5)
+end
+
+"""
+    I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the integral of the odd basis element centered at `ρ[k]` from 0 to `x`
+"""
 function I_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
-    k == 1 ? hl = 0.0 : hl = ρ[k] - ρ[k-1]
-    if x <= ρ[k]
-        Iu = 0.0
-        if k > 1 && x >= ρ[k-1]
-            # we're in the lower half
-            t = (x - ρ[k]) / hl
-            Il = hl^2 * (0.25 * t^4 + (2.0 / 3.0) * t^3 + 0.5 * t^2 - 1.0 / 12.0)
-        else
-            Il = 0.0
-        end
-    elseif x >= ρ[k]
-        Il = -hl^2 / 12.0
-        k == length(ρ) ? hu = 0.0 : hu = ρ[k+1] - ρ[k]
-        if k < length(ρ) && x <= ρ[k+1]
-            # we're in the upper half
-            t = (x - ρ[k]) / hu
-            Iu = (hu * t)^2 * (0.25 * t^2 - (2.0 / 3.0) * t + 0.5)
-        else
-            Iu = hu^2 / 12.0
-        end
-    end
+    ρk = ρ[k]
+
+    region, ρ1, ρ2 = which_region(x, k, ρ)
+    region === :out_low && return 0.0
+    region === :in_low && return I_νol(x, ρ1, ρ2)
+
+    hl = k > 1 ? ρk - ρ[k-1] : 0.0
+    Il = -one_twelf * hl^2
+    region === :in_up && return Il + I_νou(x, ρ1, ρ2)
+
+    hu = k < length(ρ) ? ρ[k+1] - ρk : 0.0
+    Iu = one_twelf * hu^2
     return Il + Iu
 end
+
+
+# FE Structure
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
-    N = length(x)
-    C = Vector{typeof(y[1])}(undef, 2N)
-    for i in 1:N
-        C[2i-1] = dy_dx[i]
-        C[2i] = y[i]
+    C = Vector{eltype(y)}(undef, 2 * length(x))
+    @inbounds for i in eachindex(x)
+        ti = 2i
+        C[ti-1] = dy_dx[i]
+        C[ti] = y[i]
     end
     return C
 end
 
-struct FE_rep{S <: AbstractVector{<:Real}, T <: AbstractVector{<:Real}}
+struct FE_rep{S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
     x::S
     coeffs::T
-end
-FE(x, y) = FE_rep(x, hermite_coeffs(x, y))
-
-function (Y::FE_rep)(x::Real)
-    y = 0.0
-    for k in 1:length(Y.x)
-        y += Y.coeffs[2k-1] * νo(x, k, Y.x)
-        y += Y.coeffs[2k] * νe(x, k, Y.x)
+    function FE_rep{S,T}(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
+        return length(coeffs) == 2length(x) ? new{S,T}(x, coeffs) : throw(DimensionMismatch)
     end
+end
+
+"""
+    FE_rep(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
+
+Create Hermite-cubic finite-element representation on grid `x` with cofficients `coeffs`
+`coeffs[2k]` is the value of the function at `x[k]`
+`coeffs[2k-1]` is the derivative of the function at `x[k]`
+
+An `FE_rep` is callable, giving the value of the finite-element representation, for example:
+```
+Y = FE_rep(x, coeffs)
+Y(a) # gives value of the finite-element representation at x=a
+```
+"""
+function FE_rep(x::S, coeffs::T) where {S<:AbstractVector{<:Real},T<:AbstractVector{<:Real}}
+    return FE_rep{S,T}(x, coeffs)
+end
+
+"""
+    FE(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
+
+Returns finite element representation of data `(x, y)`, fitting local quadratics to determine derivative
+"""
+function FE(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
+    return FE_rep(x, hermite_coeffs(x, y))
+end
+
+"""
+    FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real},<:AbstractVector{<:Real}})
+
+Returns finite element representation of data `(x, y)`, mapped to `grid`
+"""
+function FE(grid::AbstractVector{<:Real}, xy::Tuple{<:AbstractVector{<:Real},<:AbstractVector{<:Real}})
+    f = FE(xy...)
+    C = Vector{eltype(grid)}(undef, 2 * length(grid))
+    @inbounds for (i, g) in enumerate(grid)
+        ti = 2i
+        C[ti-1] = D(f, g)
+        C[ti] = f(g)
+    end
+    return FE_rep(grid, C)
+end
+
+"""
+    compute_bases(X::AbstractVector{<:Real}, x::Real)
+
+For grid `X`, find the value of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the value of multiple
+  `FE_rep`s efficiently if they share the same grid
+
+Returns `(k, nu_ou, nu_eu, nu_ol, nu_el)`
+where `nu_ou` is odd  basis element centered at `X[k]`
+      `nu_eu` is even basis element centered at `X[k]`
+      `nu_ol` is odd  basis element centered at `X[k+1]`
+      `nu_el` is even basis element centered at `X[k+1]`
+"""
+@inline function compute_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    nu_ou = νou(x, ρk, ρku)
+    nu_eu = νeu(x, ρk, ρku)
+    nu_ol = νol(x, ρk, ρku)
+    nu_el = νel(x, ρk, ρku)
+    return k, nu_ou, nu_eu, nu_ol, nu_el
+end
+
+"""
+    evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
+
+Evaluate `FE_rep` `Y` assuming basis function values/derivatives have been computed by
+    `compute_bases`, `compute_D_bases`, or `compute_both_bases`
+
+    `nu_ou` is value or derivative of odd  basis element centered at `X[k]`
+    `nu_eu` is value or derivative of even basis element centered at `X[k]`
+    `nu_ol` is value or derivative of odd  basis element centered at `X[k+1]`
+    `nu_el` is value or derivative of even basis element centered at `X[k+1]`
+"""
+@inline function evaluate(Y::FE_rep, k::Integer, nu_ou::Real, nu_eu::Real, nu_ol::Real, nu_el::Real)
+    tk = 2k
+    y = Y.coeffs[tk-1] * nu_ou
+    y += Y.coeffs[tk] * nu_eu
+    y += Y.coeffs[tk+1] * nu_ol
+    y += Y.coeffs[tk+2] * nu_el
     return y
 end
+
+"""
+    evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
+
+Evaluate `FE_rep` `Y` without bounds checking, assuming basis function values/derivatives
+     have been computed by `compute_bases`, `compute_D_bases`, or `compute_both_bases`
+
+    `nu_ou` is value or derivative of odd  basis element centered at `X[k]`
+    `nu_eu` is value or derivative of even basis element centered at `X[k]`
+    `nu_ol` is value or derivative of odd  basis element centered at `X[k+1]`
+    `nu_el` is value or derivative of even basis element centered at `X[k+1]`
+"""
+@inline function evaluate_inbounds(Y::FE_rep, k::Integer, nu_ou::T, nu_eu::T, nu_ol::T, nu_el::T) where {T<:Real}
+    tk = 2k
+    @inbounds y = Y.coeffs[tk-1] * nu_ou + Y.coeffs[tk] * nu_eu
+    @inbounds y += Y.coeffs[tk+1] * nu_ol + Y.coeffs[tk+2] * nu_el
+    return y
+end
+
+"""
+    (Y::FE_rep)(x::Real)
+
+Functor for `FE_rep`, giving the value of the finite-element representation at `x`
+"""
+function (Y::FE_rep)(x::Real)
+    k, nu_ou, nu_eu, nu_ol, nu_el = compute_bases(Y.x, x)
+    y = evaluate_inbounds(Y, k, nu_ou, nu_eu, nu_ol, nu_el)
+    return y
+end
+
+"""
+    compute_D_bases(X::AbstractVector{<:Real}, x::Real)
+
+For grid `X`, find the derivative of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the derivative of multiple
+  `FE_rep`s efficiently if they share the same grid
+
+Returns `(k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)`
+where `D_nu_ou` is derivative of odd  basis element centered at `X[k]`
+      `D_nu_eu` is derivative of even basis element centered at `X[k]`
+      `D_nu_ol` is derivative of odd  basis element centered at `X[k+1]`
+      `D_nu_el` is derivative of even basis element centered at `X[k+1]`
+"""
+@inline function compute_D_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    D_nu_ou = D_νou(x, ρk, ρku)
+    D_nu_eu = D_νeu(x, ρk, ρku)
+    D_nu_ol = D_νol(x, ρk, ρku)
+    D_nu_el = D_νel(x, ρk, ρku)
+    return k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el
+end
+
+"""
+    compute_both_bases(X::AbstractVector{<:Real}, x::Real)
+
+For grid `X`, find the value and derivative of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the value and derivative of multiple
+  `FE_rep` efficiently if they share the same grid
+
+Returns `(k, nu_ou, nu_eu, nu_ol, nu_el, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)`
+where `nu_ou` is odd  basis element centered at `X[k]`
+      `nu_eu` is even basis element centered at `X[k]`
+      `nu_ol` is odd  basis element centered at `X[k+1]`
+      `nu_el` is even basis element centered at `X[k+1]`
+      `D_nu_ou` is derivative of odd  basis element centered at `X[k]`
+      `D_nu_eu` is derivative of even basis element centered at `X[k]`
+      `D_nu_ol` is derivative of odd  basis element centered at `X[k+1]`
+      `D_nu_el` is derivative of even basis element centered at `X[k+1]`
+"""
+@inline function compute_both_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    nu_ou = νou(x, ρk, ρku)
+    nu_eu = νeu(x, ρk, ρku)
+    nu_ol = νol(x, ρk, ρku)
+    nu_el = νel(x, ρk, ρku)
+    D_nu_ou = D_νou(x, ρk, ρku)
+    D_nu_eu = D_νeu(x, ρk, ρku)
+    D_nu_ol = D_νol(x, ρk, ρku)
+    D_nu_el = D_νel(x, ρk, ρku)
+    return k, nu_ou, nu_eu, nu_ol, nu_el, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el
+end
+
+"""
+    D(Y::FE_rep, x::Real)
+
+Return derivative of FE_rep `Y` at location `x`
+"""
 function D(Y::FE_rep, x::Real)
-    dy_dx = 0.0
-    for k in 1:length(Y.x)
-        dy_dx += Y.coeffs[2k-1] * D_νo(x, k, Y.x)
-        dy_dx += Y.coeffs[2k] * D_νe(x, k, Y.x)
-    end
+    k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el = compute_D_bases(Y.x, x)
+    dy_dx = evaluate_inbounds(Y, k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)
     return dy_dx
 end
+
+"""
+    I(Y::FE_rep, x::Real)
+
+Return integral of FE_rep `Y` from 0 to `x`
+"""
 function I(Y::FE_rep, x::Real)
+    K = min(searchsortedfirst(Y.x, x), length(Y.x))
     yint = 0.0
-    for k in 1:length(Y.x)
-        yint += Y.coeffs[2k-1] * I_νo(x, k, Y.x)
-        yint += Y.coeffs[2k] * I_νe(x, k, Y.x)
+    @inbounds for k in 1:K
+        tk = 2k
+        yint += Y.coeffs[tk-1] * I_νo(x, k, Y.x)
+        yint += Y.coeffs[tk] * I_νe(x, k, Y.x)
     end
     return yint
-end
-
-#==============================================================
-Define inner products
-===============================================================#
-
-function gl_preallocate(N_gl::Integer)
-    gξ = zeros(N_gl, N_gl)
-    gw = zeros(N_gl, N_gl)
-    for i in 1:N_gl
-        gξ[1:i, i], gw[1:i, i] = gausslegendre(i)
-    end
-    return SMatrix{N_gl, N_gl}(gξ),  SMatrix{N_gl, N_gl}(gw)
-end
-
-const N_gl = 50
-const gξ_pa, gw_pa = gl_preallocate(N_gl)
-
-function integrate(f, lims::SVector; tol::Real=eps(typeof(1.0)))
-    return quadgk(f, lims..., atol=tol, rtol=sqrt(tol), maxevals=100)[1]
-end
-
-integrate(f, lims::SVector, order::Nothing; tol::Real=eps(typeof(1.0))) = integrate(f, lims; tol)
-
-function integrate(f, lims::SVector{2,<:Real}, order::Integer)
-    @assert order <= 50
-    I = 0.0
-    dxdξ = 0.5*(lims[2] - lims[1])
-    xavg = 0.5*(lims[2] + lims[1])
-    for k in 1:order
-        I += f(dxdξ * gξ_pa[k, order] + xavg) * gw_pa[k, order] * dxdξ
-    end
-    return I
-end
-
-function integrate(f, lims::SVector{3,<:Real}, order::Integer)
-    return integrate(f, SVector(lims[1], lims[2]), order) + integrate(f, SVector(lims[2], lims[3]), order)
-end
-
-function limits(k1::Integer, k2::Integer, ρ::AbstractVector{<:Real})
-    k1 != k2        && return SVector(min(ρ[k1], ρ[k2]), max(ρ[k1], ρ[k2]))
-    k1 == 1         && return SVector(ρ[1], ρ[2])
-    k1 == length(ρ) && return SVector(ρ[end-1], ρ[end])
-    return SVector(ρ[k1-1], ρ[k1], ρ[k1+1])
-end
-
-function limits(k::Integer, ρ::AbstractVector{<:Real})
-    k == 1         && return SVector(ρ[1], ρ[2])
-    k == length(ρ) && return SVector(ρ[end-1], ρ[end])
-    return SVector(ρ[k-1], ρ[k], ρ[k+1])
-end
-
-function inner_product(nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
-    abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = nu1(x, k1, ρ) * nu2(x, k2, ρ)
-    return integrate(integrand, limits(k1, k2, ρ), order)
-end
-
-function inner_product(f, nu1, k1::Integer, nu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
-    abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = f(x) * nu1(x, k1, ρ) * nu2(x, k2, ρ)
-    return integrate(integrand, limits(k1, k2, ρ), order)
-end
-
-function inner_product(nu1, k1::Integer, f, fnu2, g, gnu2, k2::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
-    abs(k1 - k2) > 1 && return 0.0
-    integrand(x) = nu1(x, k1, ρ) * (f(x) * fnu2(x, k2, ρ) + g(x) * gnu2(x, k2, ρ))
-    return integrate(integrand, limits(k1, k2, ρ), order)
-end
-
-function inner_product(f::Function, nu::Function, k::Integer, ρ::AbstractVector{<:Real}, order::Union{Nothing, Integer}=nothing)
-    integrand(x) = f(x) * nu(x, k, ρ)
-    return integrate(integrand, limits(k, ρ), order)
 end
