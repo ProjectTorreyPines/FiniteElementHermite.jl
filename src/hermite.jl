@@ -595,44 +595,52 @@ end
 
 """
     extrapolate(Y::FE_rep, side::Symbol, k::Integer, Δx::Real,
-                DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real)
+                DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real;
+                order::Int=2)
 
 Extrapolate `FE_rep` `Y` using pre-computed extrapolation bases from `compute_extrapolation_bases`.
-Uses a quadratic matching value, first derivative, and second derivative at the boundary.
+
+With `order=1` (linear): matches value and first derivative at the boundary.
+With `order=2` (quadratic, default): also matches second derivative at the boundary.
 
 This method is efficient when extrapolating multiple `FE_rep`s on the same grid.
 """
 function extrapolate(Y::FE_rep, side::Symbol, k::Integer, Δx::Real,
-                     DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real)
-    tk = 2k
+                     DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real;
+                     order::Int=2)
     if side === :low
         # Boundary at X[1]: coeffs[1] = deriv, coeffs[2] = value
         @inbounds f0 = Y.coeffs[2]
         @inbounds f1 = Y.coeffs[1]
-        # Second derivative from element [X[1], X[2]]
-        @inbounds f2 = Y.coeffs[tk-1] * DD_nu_ou + Y.coeffs[tk] * DD_nu_eu +
-                       Y.coeffs[tk+1] * DD_nu_ol + Y.coeffs[tk+2] * DD_nu_el
     else
         # side === :high, boundary at X[end]: coeffs[end-1] = deriv, coeffs[end] = value
         @inbounds f0 = Y.coeffs[end]
         @inbounds f1 = Y.coeffs[end-1]
-        # Second derivative from element [X[end-1], X[end]]
+    end
+
+    if order == 1
+        return f0 + f1 * Δx
+    else
+        # Quadratic extrapolation using second derivative
+        tk = 2k
         @inbounds f2 = Y.coeffs[tk-1] * DD_nu_ou + Y.coeffs[tk] * DD_nu_eu +
                        Y.coeffs[tk+1] * DD_nu_ol + Y.coeffs[tk+2] * DD_nu_el
+        return f0 + f1 * Δx + 0.5 * f2 * Δx^2
     end
-    return f0 + f1 * Δx + 0.5 * f2 * Δx^2
 end
 
 """
-    extrapolate(Y::FE_rep, x::Real)
+    extrapolate(Y::FE_rep, x::Real; order::Int=2)
 
 Extrapolate `FE_rep` `Y` to point `x` outside the grid bounds.
-Uses a quadratic matching value, first derivative, and second derivative at the boundary.
+
+With `order=1` (linear): matches value and first derivative at the boundary.
+With `order=2` (quadratic, default): also matches second derivative at the boundary.
 
 For `x < Y.x[1]`, extrapolates from the low boundary.
 For `x > Y.x[end]`, extrapolates from the high boundary.
 """
-function extrapolate(Y::FE_rep, x::Real)
+function extrapolate(Y::FE_rep, x::Real; order::Int=2)
     side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el = compute_extrapolation_bases(Y.x, x)
-    return extrapolate(Y, side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el)
+    return extrapolate(Y, side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el; order)
 end
