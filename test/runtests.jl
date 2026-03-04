@@ -328,4 +328,12 @@ end
     # Extrapolate both FE_reps using shared bases
     @test extrapolate(F, side, k, Δx, DD_bases...) ≈ f(x_test) atol=1e-10
     @test extrapolate(G, side, k, Δx, DD_bases...) ≈ g(x_test) atol=1e-10
+
+    # Fix #1: in-bounds x should throw
+    @test_throws ArgumentError compute_extrapolation_bases(collect(ρ), 0.5)
+    @test_throws ArgumentError extrapolate(F, 0.5)
+
+    # Fix #2: invalid order should throw
+    @test_throws ArgumentError extrapolate(F, -0.1; order=0)
+    @test_throws ArgumentError extrapolate(F, -0.1; order=3)
 end

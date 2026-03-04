@@ -559,6 +559,8 @@ end
 For grid `X` and point `x` outside the grid bounds, compute the bases needed for quadratic extrapolation.
 This can be used with `extrapolate` to extrapolate multiple `FE_rep`s efficiently if they share the same grid.
 
+Throws an `ArgumentError` if `x` is within the grid bounds `[X[1], X[end]]`.
+
 Returns `(side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el)`
 where `side` is `:low` if `x < X[1]` or `:high` if `x > X[end]`
       `k` is the element index for the boundary element
@@ -566,6 +568,7 @@ where `side` is `:low` if `x < X[1]` or `:high` if `x > X[end]`
       `DD_nu_*` are the second derivative basis values at the boundary
 """
 function compute_extrapolation_bases(X::AbstractVector{<:Real}, x::Real)
+    X[1] < x < X[end] && throw(ArgumentError("x=$x is within grid bounds [$(X[1]), $(X[end])]"))
     if x < X[1]
         # Low boundary extrapolation
         k = 1
@@ -608,6 +611,7 @@ This method is efficient when extrapolating multiple `FE_rep`s on the same grid.
 function extrapolate(Y::FE_rep, side::Symbol, k::Integer, Δx::Real,
                      DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real;
                      order::Int=2)
+    order in (1, 2) || throw(ArgumentError("order must be 1 or 2, got $order"))
     if side === :low
         # Boundary at X[1]: coeffs[1] = deriv, coeffs[2] = value
         @inbounds f0 = Y.coeffs[2]
@@ -641,6 +645,7 @@ For `x < Y.x[1]`, extrapolates from the low boundary.
 For `x > Y.x[end]`, extrapolates from the high boundary.
 """
 function extrapolate(Y::FE_rep, x::Real; order::Int=2)
+    order in (1, 2) || throw(ArgumentError("order must be 1 or 2, got $order"))
     side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el = compute_extrapolation_bases(Y.x, x)
     return extrapolate(Y, side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el; order)
 end
