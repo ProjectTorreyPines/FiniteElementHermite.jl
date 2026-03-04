@@ -100,6 +100,44 @@ function D_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     return 0.0
 end
 
+function DD_νel(x::Real, ρkl::Real, ρk::Real)
+    ihl = 1.0 / (ρk - ρkl)
+    t = (x - ρk) * ihl
+    return -(12.0 * t + 6.0) * ihl^2
+end
+
+function DD_νeu(x::Real, ρk::Real, ρku::Real)
+    ihu = 1.0 / (ρku - ρk)
+    t = (x - ρk) * ihu
+    return (12.0 * t - 6.0) * ihu^2
+end
+
+"""
+    DD_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the second derivative of the even basis element centered at `ρ[k]` at `x`
+Note: Unlike νe and D_νe, DD_νe includes the boundary points since second derivative
+is not constrained to be continuous (C¹ continuity only).
+"""
+function DD_νe(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+    ρk = ρ[k]
+    # Lower element: [ρkl, ρk] - include both boundaries
+    if k > 1
+        ρkl = ρ[k-1]
+        if x >= ρkl && x <= ρk
+            return DD_νel(x, ρkl, ρk)
+        end
+    end
+    # Upper element: [ρk, ρku] - include both boundaries
+    if k < length(ρ)
+        ρku = ρ[k+1]
+        if x >= ρk && x <= ρku
+            return DD_νeu(x, ρk, ρku)
+        end
+    end
+    return 0.0
+end
+
 function I_νel(x::Real, ρkl::Real, ρk::Real)
     hl = ρk - ρkl
     t = (x - ρk) / hl
@@ -175,6 +213,44 @@ function D_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
     region, ρ1, ρ2 = which_region(x, k, ρ)
     region === :in_low && return D_νol(x, ρ1, ρ2)
     region === :in_up && return D_νou(x, ρ1, ρ2)
+    return 0.0
+end
+
+function DD_νol(x::Real, ρkl::Real, ρk::Real)
+    ihl = 1.0 / (ρk - ρkl)
+    t = (x - ρk) * ihl
+    return (6.0 * t + 4.0) * ihl
+end
+
+function DD_νou(x::Real, ρk::Real, ρku::Real)
+    ihu = 1.0 / (ρku - ρk)
+    t = (x - ρk) * ihu
+    return (6.0 * t - 4.0) * ihu
+end
+
+"""
+    DD_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+
+Returns the second derivative of the odd basis element centered at `ρ[k]` at `x`
+Note: Unlike νo and D_νo, DD_νo includes the boundary points since second derivative
+is not constrained to be continuous (C¹ continuity only).
+"""
+function DD_νo(x::Real, k::Integer, ρ::AbstractVector{<:Real})
+    ρk = ρ[k]
+    # Lower element: [ρkl, ρk] - include both boundaries
+    if k > 1
+        ρkl = ρ[k-1]
+        if x >= ρkl && x <= ρk
+            return DD_νol(x, ρkl, ρk)
+        end
+    end
+    # Upper element: [ρk, ρku] - include both boundaries
+    if k < length(ρ)
+        ρku = ρ[k+1]
+        if x >= ρk && x <= ρku
+            return DD_νou(x, ρk, ρku)
+        end
+    end
     return 0.0
 end
 
@@ -414,6 +490,32 @@ where `nu_ou` is odd  basis element centered at `X[k]`
 end
 
 """
+    compute_DD_bases(X::AbstractVector{<:Real}, x::Real)
+
+For grid `X`, find the second derivative of the four basis functions at `x`
+This can be used with `evaluate` or `evaluate_inbounds` to compute the second derivative of multiple
+  `FE_rep`s efficiently if they share the same grid
+
+Returns `(k, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el)`
+where `DD_nu_ou` is second derivative of odd  basis element centered at `X[k]`
+      `DD_nu_eu` is second derivative of even basis element centered at `X[k]`
+      `DD_nu_ol` is second derivative of odd  basis element centered at `X[k+1]`
+      `DD_nu_el` is second derivative of even basis element centered at `X[k+1]`
+"""
+@inline function compute_DD_bases(X::AbstractVector{<:Real}, x::Real)
+    k = searchsortedlast(X, x)
+    k == length(X) && (k -= 1)
+
+    @inbounds ρk = X[k]
+    @inbounds ρku = X[k+1]
+    DD_nu_ou = DD_νou(x, ρk, ρku)
+    DD_nu_eu = DD_νeu(x, ρk, ρku)
+    DD_nu_ol = DD_νol(x, ρk, ρku)
+    DD_nu_el = DD_νel(x, ρk, ρku)
+    return k, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el
+end
+
+"""
     D(Y::FE_rep, x::Real)
 
 Return derivative of FE_rep `Y` at location `x`
@@ -422,6 +524,17 @@ function D(Y::FE_rep, x::Real)
     k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el = compute_D_bases(Y.x, x)
     dy_dx = evaluate_inbounds(Y, k, D_nu_ou, D_nu_eu, D_nu_ol, D_nu_el)
     return dy_dx
+end
+
+"""
+    DD(Y::FE_rep, x::Real)
+
+Return second derivative of FE_rep `Y` at location `x`
+"""
+function DD(Y::FE_rep, x::Real)
+    k, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el = compute_DD_bases(Y.x, x)
+    d2y_dx2 = evaluate_inbounds(Y, k, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el)
+    return d2y_dx2
 end
 
 """
@@ -438,4 +551,101 @@ function I(Y::FE_rep, x::Real)
         yint += Y.coeffs[tk] * I_νe(x, k, Y.x)
     end
     return yint
+end
+
+"""
+    compute_extrapolation_bases(X::AbstractVector{<:Real}, x::Real)
+
+For grid `X` and point `x` outside the grid bounds, compute the bases needed for quadratic extrapolation.
+This can be used with `extrapolate` to extrapolate multiple `FE_rep`s efficiently if they share the same grid.
+
+Throws an `ArgumentError` if `x` is within the grid bounds `[X[1], X[end]]`.
+
+Returns `(side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el)`
+where `side` is `:low` if `x < X[1]` or `:high` if `x > X[end]`
+      `k` is the element index for the boundary element
+      `Δx` is the offset from the boundary point
+      `DD_nu_*` are the second derivative basis values at the boundary
+"""
+function compute_extrapolation_bases(X::AbstractVector{<:Real}, x::Real)
+    X[1] < x < X[end] && throw(ArgumentError("x=$x is within grid bounds [$(X[1]), $(X[end])]"))
+    if x < X[1]
+        # Low boundary extrapolation
+        k = 1
+        @inbounds ρk = X[1]
+        @inbounds ρku = X[2]
+        Δx = x - ρk
+        # Second derivative basis values at x = ρk (t=0 in upper element)
+        DD_nu_ou = DD_νou(ρk, ρk, ρku)
+        DD_nu_eu = DD_νeu(ρk, ρk, ρku)
+        DD_nu_ol = DD_νol(ρk, ρk, ρku)
+        DD_nu_el = DD_νel(ρk, ρk, ρku)
+        return :low, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el
+    else
+        # High boundary extrapolation (x > X[end])
+        k = length(X) - 1
+        @inbounds ρk = X[k]
+        @inbounds ρku = X[k+1]
+        Δx = x - ρku
+        # Second derivative basis values at x = ρku (t=1 in upper element)
+        DD_nu_ou = DD_νou(ρku, ρk, ρku)
+        DD_nu_eu = DD_νeu(ρku, ρk, ρku)
+        DD_nu_ol = DD_νol(ρku, ρk, ρku)
+        DD_nu_el = DD_νel(ρku, ρk, ρku)
+        return :high, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el
+    end
+end
+
+"""
+    extrapolate(Y::FE_rep, side::Symbol, k::Integer, Δx::Real,
+                DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real;
+                order::Int=2)
+
+Extrapolate `FE_rep` `Y` using pre-computed extrapolation bases from `compute_extrapolation_bases`.
+
+With `order=1` (linear): matches value and first derivative at the boundary.
+With `order=2` (quadratic, default): also matches second derivative at the boundary.
+
+This method is efficient when extrapolating multiple `FE_rep`s on the same grid.
+"""
+function extrapolate(Y::FE_rep, side::Symbol, k::Integer, Δx::Real,
+                     DD_nu_ou::Real, DD_nu_eu::Real, DD_nu_ol::Real, DD_nu_el::Real;
+                     order::Int=2)
+    order in (1, 2) || throw(ArgumentError("order must be 1 or 2, got $order"))
+    if side === :low
+        # Boundary at X[1]: coeffs[1] = deriv, coeffs[2] = value
+        @inbounds f0 = Y.coeffs[2]
+        @inbounds f1 = Y.coeffs[1]
+    else
+        # side === :high, boundary at X[end]: coeffs[end-1] = deriv, coeffs[end] = value
+        @inbounds f0 = Y.coeffs[end]
+        @inbounds f1 = Y.coeffs[end-1]
+    end
+
+    if order == 1
+        return f0 + f1 * Δx
+    else
+        # Quadratic extrapolation using second derivative
+        tk = 2k
+        @inbounds f2 = Y.coeffs[tk-1] * DD_nu_ou + Y.coeffs[tk] * DD_nu_eu +
+                       Y.coeffs[tk+1] * DD_nu_ol + Y.coeffs[tk+2] * DD_nu_el
+        return f0 + f1 * Δx + 0.5 * f2 * Δx^2
+    end
+end
+
+"""
+    extrapolate(Y::FE_rep, x::Real; order::Int=2)
+
+Extrapolate `FE_rep` `Y` to point `x` outside the grid bounds.
+
+With `order=1` (linear): matches value and first derivative at the boundary.
+With `order=2` (quadratic, default): also matches second derivative at the boundary.
+
+For `x < Y.x[1]`, extrapolates from the low boundary.
+For `x > Y.x[end]`, extrapolates from the high boundary.
+"""
+function extrapolate(Y::FE_rep, x::Real; order::Int=2)
+    order in (1, 2) || throw(ArgumentError("order must be 1 or 2, got $order"))
+    side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el = compute_extrapolation_bases(Y.x, x)
+    return extrapolate(Y, side, k, Δx, DD_nu_ou, DD_nu_eu, DD_nu_ol, DD_nu_el; order)
 end
