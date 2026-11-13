@@ -1,5 +1,6 @@
 using FiniteElementHermite
 using Test
+import ForwardDiff
 
 
 
@@ -336,4 +337,18 @@ end
     # Fix #2: invalid order should throw
     @test_throws ArgumentError extrapolate(F, -0.1; order=0)
     @test_throws ArgumentError extrapolate(F, -0.1; order=3)
+end
+
+@testset "mixed grid/data number types" begin
+    # plain grid with ForwardDiff dual data (e.g. profiles carrying sensitivities):
+    # the fit is linear in the data, so the partials are the fit of the partials
+    x = collect(range(0.0, 1.0, 11))
+    y = sin.(2x)
+    dy = x .^ 2
+    yd = ForwardDiff.Dual.(y, dy)
+    F = FE(x, yd)
+    @test eltype(F.coeffs) <: ForwardDiff.Dual
+    @test ForwardDiff.value.(F.coeffs) ≈ FE(x, y).coeffs
+    @test ForwardDiff.partials.(F.coeffs, 1) ≈ FE(x, dy).coeffs
+    @test ForwardDiff.partials(F(0.37), 1) ≈ FE(x, dy)(0.37)
 end
