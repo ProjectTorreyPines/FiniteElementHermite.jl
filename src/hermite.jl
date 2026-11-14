@@ -3,12 +3,15 @@ Define Hermite cubic finite elements
 ===============================================================#
 
 """
-    quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
+    quad_deriv(x1::Real, x2::Real, x3::Real, y1::Real, y2::Real, y3::Real)
 
 Fit a parabola going through three points `(x1, y1)`, `(x2, y2)`, and `(x3, y3)`
 and return derivative at `x2`
+
+The grid and the data may have different number types (e.g. a plain grid with
+ForwardDiff dual data).
 """
-function quad_deriv(x1::T, x2::T, x3::T, y1::T, y2::T, y3::T) where {T<:Real}
+function quad_deriv(x1::Real, x2::Real, x3::Real, y1::Real, y2::Real, y3::Real)
     hl = x2 - x1
     hu = x3 - x2
     return ((y3 - y2) * hl^2 + (y2 - y1) * hu^2) / (hu * hl * (hu + hl))
@@ -20,7 +23,7 @@ end
 Returns dy/dx at every point in `x`, based on local quadratic fit
 """
 function fit_derivative(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
-    dy_dx = similar(x)
+    dy_dx = similar(y, promote_type(eltype(x), eltype(y)), length(x))
     dy_dx[1] = quad_deriv(x[3], x[1], x[2], y[3], y[1], y[2])
     dy_dx[end] = quad_deriv(x[end-1], x[end], x[end-2], y[end-1], y[end], y[end-2])
     for k in 2:length(x)-1
@@ -295,7 +298,7 @@ end
 
 function hermite_coeffs(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     dy_dx = fit_derivative(x, y)
-    C = Vector{eltype(y)}(undef, 2 * length(x))
+    C = Vector{eltype(dy_dx)}(undef, 2 * length(x))
     @inbounds for i in eachindex(x)
         ti = 2i
         C[ti-1] = dy_dx[i]
